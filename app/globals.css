@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 250, 250, 250;
+  --background-end-rgb: 250, 250, 250;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-start-rgb));
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Hide native number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Print styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print\\:shadow-none,
+  .print\\:p-4,
+  .print\\:shadow-none *,
+  .print\\:p-4 * {
+    visibility: visible;
+  }
+  .print\\:shadow-none,
+  .print\\:p-4 {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  nav,
+  button,
+  a,
+  .print\\:hidden {
+    display: none !important;
+  }
+}
+
