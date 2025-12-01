@@ -27,14 +27,20 @@ export default function LoginPage() {
     // Route based on role
     switch (selectedRole) {
       case 'employee':
+        // Set a demo employee ID for now
+        // In production, this would come from Better-Auth session
+        localStorage.setItem('employeeId', 'demo-employee-001')
         router.push('/')
         break
       case 'manager':
         // Set a demo manager ID for now
-        localStorage.setItem('managerId', 'demo-manager-id')
+        localStorage.setItem('managerId', 'demo-manager-001')
+        localStorage.setItem('employeeId', 'demo-manager-001')
         router.push('/manager/dashboard')
         break
       case 'admin':
+        // Set a demo admin ID for now
+        localStorage.setItem('employeeId', 'demo-admin-001')
         router.push('/admin/dashboard')
         break
       default:
