@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateInvoicePdf } from '@/lib/pdf/invoicePdf'
 import type { Invoice } from '@/types/domain'
 
+// Force Node.js runtime for PDFKit (requires Node.js APIs)
+export const runtime = 'nodejs'
+
 /**
  * API route to generate invoice PDF from invoice data
  * POST /api/invoices/generate
@@ -10,6 +13,14 @@ import type { Invoice } from '@/types/domain'
 export async function POST(request: NextRequest) {
   try {
     const invoice: Invoice = await request.json()
+
+    // Validate invoice data
+    if (!invoice || !invoice.invoiceNumber) {
+      return NextResponse.json(
+        { error: 'Invalid invoice data' },
+        { status: 400 }
+      )
+    }
 
     // Generate PDF
     const pdfBuffer = await generateInvoicePdf(invoice)
@@ -23,8 +34,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('Error generating PDF:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { error: 'Failed to generate PDF' },
+      { error: 'Failed to generate PDF', details: errorMessage },
       { status: 500 }
     )
   }

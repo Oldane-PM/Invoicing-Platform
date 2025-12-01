@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Download, Printer } from 'lucide-react'
 import { format } from 'date-fns'
+import { getInvoiceWithItems } from '@/lib/supabase/queries/invoices'
 
 interface InvoiceItem {
   description: string
@@ -45,15 +46,37 @@ export default function InvoiceView() {
   const params = useParams()
   const router = useRouter()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = localStorage.getItem('invoices')
-    if (stored) {
-      const invoices = JSON.parse(stored)
-      const found = invoices.find((inv: Invoice) => inv.id === params.id)
-      setInvoice(found || null)
+    if (params.id) {
+      loadInvoice(params.id as string)
     }
   }, [params.id])
+
+  const loadInvoice = async (invoiceId: string) => {
+    try {
+      setLoading(true)
+      const invoiceData = await getInvoiceWithItems(invoiceId)
+      setInvoice(invoiceData)
+    } catch (error) {
+      console.error('Error loading invoice:', error)
+      setInvoice(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <p className="mt-4 text-gray-500">Loading invoice...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!invoice) {
     return (

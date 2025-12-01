@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, X } from 'lucide-react'
+import { getEmployeeById, updateEmployeeProfile } from '@/lib/supabase/queries/employees'
 
 type TabType = 'personal' | 'banking' | 'project'
 
@@ -68,20 +69,120 @@ export default function Profile() {
   })
   const [formData, setFormData] = useState<EmployeeProfile>(profile)
   const [isEditing, setIsEditing] = useState(false)
+  const [employeeId, setEmployeeId] = useState<string>('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = localStorage.getItem('employeeProfile')
-    if (stored) {
-      const saved = JSON.parse(stored)
-      setProfile(saved)
-      setFormData(saved)
+    // Get employee ID from localStorage (should come from auth session in production)
+    const storedEmployeeId = localStorage.getItem('employeeId')
+    if (storedEmployeeId) {
+      setEmployeeId(storedEmployeeId)
+    } else {
+      // Fallback to localStorage profile if no employee ID
+      const stored = localStorage.getItem('employeeProfile')
+      if (stored) {
+        const saved = JSON.parse(stored)
+        setProfile(saved)
+        setFormData(saved)
+        setLoading(false)
+      }
     }
   }, [])
 
-  const handleSave = () => {
-    setProfile(formData)
-    localStorage.setItem('employeeProfile', JSON.stringify(formData))
-    setIsEditing(false)
+  useEffect(() => {
+    if (employeeId) {
+      loadProfile()
+    }
+  }, [employeeId])
+
+  const loadProfile = async () => {
+    try {
+      setLoading(true)
+      const employee = await getEmployeeById(employeeId)
+      
+      // Transform database employee to profile format
+      const profileData: EmployeeProfile = {
+        personal: {
+          fullName: employee.name || '',
+          address: employee.address || '',
+          stateParish: employee.state_parish || '',
+          country: employee.country || '',
+          zipPostalCode: employee.zip_postal_code || '',
+          email: employee.email || '',
+          phone: employee.phone || '',
+        },
+        banking: {
+          bankName: employee.bank_name || '',
+          bankAddress: employee.bank_address || '',
+          swiftCode: employee.swift_code || '',
+          abaWireRouting: employee.aba_wire_routing || '',
+          accountType: employee.account_type || '',
+          currency: employee.currency || '',
+          accountNumber: employee.account_number || '',
+        },
+        project: {
+          activeProject: employee.active_project || '',
+          hourlyRate: employee.hourly_rate?.toString() || '',
+          projectTypes: employee.project_types || [],
+        },
+      }
+      
+      setProfile(profileData)
+      setFormData(profileData)
+    } catch (error) {
+      console.error('Error loading profile:', error)
+      // Fallback to localStorage if Supabase fails
+      const stored = localStorage.getItem('employeeProfile')
+      if (stored) {
+        const saved = JSON.parse(stored)
+        setProfile(saved)
+        setFormData(saved)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!employeeId) {
+      // Fallback to localStorage if no employee ID
+      setProfile(formData)
+      localStorage.setItem('employeeProfile', JSON.stringify(formData))
+      setIsEditing(false)
+      return
+    }
+
+    try {
+      // Transform profile to database format
+      await updateEmployeeProfile(employeeId, {
+        name: formData.personal.fullName,
+        email: formData.personal.email,
+        address: formData.personal.address,
+        state_parish: formData.personal.stateParish,
+        country: formData.personal.country,
+        zip_postal_code: formData.personal.zipPostalCode,
+        phone: formData.personal.phone,
+        bank_name: formData.banking.bankName,
+        bank_address: formData.banking.bankAddress,
+        swift_code: formData.banking.swiftCode,
+        aba_wire_routing: formData.banking.abaWireRouting,
+        account_type: formData.banking.accountType,
+        currency: formData.banking.currency,
+        account_number: formData.banking.accountNumber,
+        active_project: formData.project.activeProject,
+        hourly_rate: parseFloat(formData.project.hourlyRate) || null,
+        project_types: formData.project.projectTypes,
+      })
+      
+      setProfile(formData)
+      // Also save to localStorage as backup
+      localStorage.setItem('employeeProfile', JSON.stringify(formData))
+      setIsEditing(false)
+      alert('Profile updated successfully!')
+    } catch (error) {
+      console.error('Error saving profile:', error)
+      alert('Failed to save profile. Please try again.')
+    }
   }
 
   const handleCancel = () => {

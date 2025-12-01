@@ -104,23 +104,32 @@ export async function generateInvoicePdf(invoice: Invoice): Promise<Buffer> {
 
         // Wrap description text if needed
         const maxDescriptionWidth = pageWidth - margin - 300
-        const descriptionLines = doc.heightOfString(item.description, {
-          width: maxDescriptionWidth,
-        })
-        const descriptionHeight = Math.max(descriptionLines, 12)
+        
+        // Calculate text height for wrapping
+        let descriptionHeight = 12
+        try {
+          const textHeight = doc.heightOfString(item.description || '', {
+            width: maxDescriptionWidth,
+          })
+          descriptionHeight = Math.max(textHeight, 12)
+        } catch (e) {
+          // If heightOfString fails, use default height
+          descriptionHeight = 12
+        }
 
-        doc.text(item.description, margin, yPosition, {
+        // Draw description with text wrapping
+        doc.text(item.description || '', margin, yPosition, {
           width: maxDescriptionWidth,
         })
 
         const itemY = yPosition
-        doc.text(item.hours.toString(), pageWidth - margin - 150, itemY, {
+        doc.text((item.hours || 0).toString(), pageWidth - margin - 150, itemY, {
           align: 'right',
         })
-        doc.text(`$${item.rate.toFixed(2)}`, pageWidth - margin - 100, itemY, {
+        doc.text(`$${(item.rate || 0).toFixed(2)}`, pageWidth - margin - 100, itemY, {
           align: 'right',
         })
-        doc.text(`$${item.amount.toFixed(2)}`, pageWidth - margin, itemY, {
+        doc.text(`$${(item.amount || 0).toFixed(2)}`, pageWidth - margin, itemY, {
           align: 'right',
         })
 
@@ -153,7 +162,7 @@ export async function generateInvoicePdf(invoice: Invoice): Promise<Buffer> {
       yPosition += 12
 
       doc.font('Helvetica').fontSize(10)
-      doc.text(`Account Holder Name: ${invoice.from.name || ''}`, margin, yPosition)
+      doc.text(`Account Holder Name: ${invoice.from?.name || ''}`, margin, yPosition)
       yPosition += 12
       doc.text(
         `Bank Name: ${invoice.banking?.bankName || ''}`,
