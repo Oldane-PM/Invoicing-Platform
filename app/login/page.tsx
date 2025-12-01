@@ -25,22 +25,22 @@ export default function LoginPage() {
     localStorage.setItem('userRole', selectedRole)
 
     // Route based on role
+    // Using valid UUIDs that match test employees in Supabase
     switch (selectedRole) {
       case 'employee':
-        // Set a demo employee ID for now
-        // In production, this would come from Better-Auth session
-        localStorage.setItem('employeeId', 'demo-employee-001')
+        // Demo employee UUID - must exist in Supabase employees table
+        localStorage.setItem('employeeId', '00000000-0000-0000-0000-000000000001')
         router.push('/')
         break
       case 'manager':
-        // Set a demo manager ID for now
-        localStorage.setItem('managerId', 'demo-manager-001')
-        localStorage.setItem('employeeId', 'demo-manager-001')
+        // Demo manager UUID - must exist in Supabase employees table
+        localStorage.setItem('managerId', '00000000-0000-0000-0000-000000000002')
+        localStorage.setItem('employeeId', '00000000-0000-0000-0000-000000000002')
         router.push('/manager/dashboard')
         break
       case 'admin':
-        // Set a demo admin ID for now
-        localStorage.setItem('employeeId', 'demo-admin-001')
+        // Demo admin UUID - must exist in Supabase employees table
+        localStorage.setItem('employeeId', '00000000-0000-0000-0000-000000000003')
         router.push('/admin/dashboard')
         break
       default:
