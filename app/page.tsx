@@ -274,8 +274,22 @@ export default function Dashboard() {
         submissionId: submission.id,
       }
 
-      // Invoice will be stored in Supabase when submission is updated with invoice_id
-      // No need to store in localStorage
+      // Save invoice to Supabase
+      try {
+        const saveResponse = await fetch('/api/invoices/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(invoice),
+        })
+
+        if (!saveResponse.ok) {
+          console.error('Failed to save invoice to database')
+        }
+      } catch (saveError) {
+        console.error('Error saving invoice:', saveError)
+      }
 
       return invoiceId
     } catch (error) {
@@ -390,14 +404,15 @@ export default function Dashboard() {
       
       // Transform and add to local state
       const newSubmission = transformSubmissionToFrontend(result.data)
-      setSubmissions([newSubmission, ...submissions])
 
       // Generate invoice (PDF will be generated on-demand when opened)
       const invoiceId = await generateInvoice(newSubmission)
       if (invoiceId) {
-        // Update submission with invoice ID
-        // TODO: Update submission in Supabase with invoice_id
+        // Update local submission with invoice ID
+        newSubmission.invoiceId = invoiceId
       }
+      
+      setSubmissions([newSubmission, ...submissions])
 
       setShowSubmitModal(false)
       setFormData({
