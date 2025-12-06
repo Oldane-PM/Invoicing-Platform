@@ -2,17 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 250, 250, 250;
-  --background-end-rgb: 250, 250, 250;
-}
-
-body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-start-rgb));
-}
-
 @layer utilities {
   .text-balance {
     text-wrap: balance;
@@ -54,5 +43,43 @@ input[type="number"] {
   .print\\:hidden {
     display: none !important;
   }
+}
+
+/* Global app background + typography tweaks for the design system */
+body {
+  @apply bg-slate-50 text-slate-700;
+}
+
+main {
+  @apply text-[14px] leading-relaxed;
+}
+
+/* Shared button primitives */
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 h-10 rounded-lg text-sm font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 active:scale-[0.98];
+}
+
+.btn-primary {
+  @apply btn bg-primary-500 text-white hover:bg-primary-600;
+}
+
+.btn-success {
+  @apply btn bg-green-500 text-white hover:bg-green-600;
+}
+
+.btn-danger {
+  @apply btn bg-red-500 text-white hover:bg-red-600;
+}
+
+.btn-warning {
+  @apply btn bg-amber-500 text-white hover:bg-amber-600;
+}
+
+.btn-secondary {
+  @apply btn border border-slate-300 text-slate-700 bg-white hover:bg-slate-100;
+}
+
+.btn-ghost {
+  @apply btn bg-transparent text-slate-700 hover:bg-slate-100;
 }
 
