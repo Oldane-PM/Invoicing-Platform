@@ -136,8 +136,11 @@ export async function deleteSubmission(submissionId: string, employeeId: string)
     throw new Error('Unauthorized: Submission does not belong to employee')
   }
 
-  if (submission.status !== 'submitted') {
-    throw new Error('Cannot delete submission: Status is not "submitted"')
+  // Allow deletion only for SUBMITTED status (canonical uppercase)
+  // Also handle legacy lowercase for backwards compatibility
+  const normalizedStatus = submission.status?.toUpperCase()
+  if (normalizedStatus !== 'SUBMITTED') {
+    throw new Error('Cannot delete submission: Status is not "SUBMITTED"')
   }
 
   const { error } = await supabase

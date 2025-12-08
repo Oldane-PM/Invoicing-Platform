@@ -1,23 +1,3 @@
-InstallTrigger is deprecated and will be removed in the future. commons.js:2:589527
-Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools react-dom.development.js:38560:1
-[Fast Refresh] rebuilding hot-reloader-client.tsx:297:15
-[Fast Refresh] done in 2613ms hot-reloader-client.tsx:74:11
-[Fast Refresh] done in 3254ms hot-reloader-client.tsx:74:11
-The resource at “http://localhost:3001/_next/static/media/e4af272ccee01ff0-s.p.woff2” preloaded with link preload was not used within a few seconds. Make sure all attributes of the preload tag are set correctly. login
-[Fast Refresh] rebuilding hot-reloader-client.tsx:297:15
-[Fast Refresh] done in 2096ms hot-reloader-client.tsx:74:11
-Error submitting hours: Error: Failed to create submission
-    handleSubmitHours webpack-internal:///(app-pages-browser)/./app/page.tsx:665
-app-index.tsx:25:20
-Error submitting hours: Error: Failed to create submission
-    handleSubmitHours webpack-internal:///(app-pages-browser)/./app/page.tsx:665
-app-index.tsx:25:20
-Error submitting hours: Error: Failed to create submission
-    handleSubmitHours webpack-internal:///(app-pages-browser)/./app/page.tsx:665
-app-index.tsx:25:20
-
-​
-
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase/client'
 

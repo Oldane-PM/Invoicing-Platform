@@ -35,8 +35,10 @@ export async function GET() {
 
     const allSubmissions = submissions || []
 
-    // Calculate pending reviews (status = 'submitted')
-    const pendingReviews = allSubmissions.filter(s => s.status === 'submitted').length
+    // Calculate pending reviews (status = 'SUBMITTED' or 'MANAGER_APPROVED' awaiting admin action)
+    const pendingReviews = allSubmissions.filter(s => 
+      s.status === 'SUBMITTED' || s.status === 'MANAGER_APPROVED'
+    ).length
 
     // Calculate total payout this month
     const now = new Date()
@@ -45,7 +47,7 @@ export async function GET() {
 
     const thisMonthPaid = allSubmissions.filter(s => {
       const submissionDate = new Date(s.submission_date)
-      return s.status === 'payment_done' &&
+      return s.status === 'ADMIN_PAID' &&
         submissionDate >= startOfMonth &&
         submissionDate <= endOfMonth
     })
@@ -63,7 +65,7 @@ export async function GET() {
 
     const lastMonthPaid = allSubmissions.filter(s => {
       const submissionDate = new Date(s.submission_date)
-      return s.status === 'payment_done' &&
+      return s.status === 'ADMIN_PAID' &&
         submissionDate >= startOfLastMonth &&
         submissionDate <= endOfLastMonth
     })
