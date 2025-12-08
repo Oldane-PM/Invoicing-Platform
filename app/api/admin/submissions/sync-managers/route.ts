@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     let errorCount = 0
 
     // Update submissions for each employee
-    for (const [employeeId, managerId] of employeeManagerMap) {
+    for (const [employeeId, managerId] of Array.from(employeeManagerMap.entries())) {
       const { error: updateError, count } = await supabaseAdmin
         .from('submissions')
         .update({ 
