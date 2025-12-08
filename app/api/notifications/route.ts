@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getNotifications, type NotificationRole } from '@/lib/notifications'
 
+// Force dynamic rendering - notifications are per-user and real-time
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
