@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb, RGB } from 'pdf-lib'
 import type { Invoice } from '@/types/domain'
 
 /**
@@ -21,7 +21,7 @@ export async function generateInvoicePdf(invoice: Invoice): Promise<Buffer> {
   let yPosition = height - margin
   
   // Helper to draw text
-  const drawText = (text: string, x: number, y: number, options: { font?: typeof helvetica, size?: number, color?: typeof rgb } = {}) => {
+  const drawText = (text: string, x: number, y: number, options: { font?: typeof helvetica, size?: number, color?: RGB } = {}) => {
     page.drawText(text || '', {
       x,
       y,

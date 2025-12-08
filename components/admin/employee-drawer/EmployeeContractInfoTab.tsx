@@ -52,7 +52,7 @@ export function EmployeeContractInfoTab({
     setFormValues(contractInfo)
   }, [contractInfo])
 
-  const handleInputChange = (field: keyof ContractInfo, value: string | number) => {
+  const handleInputChange = (field: keyof ContractInfo, value: string | number | undefined) => {
     setFormValues(prev => ({ ...prev, [field]: value }))
     // Clear error when user starts typing
     if (errors[field]) {
