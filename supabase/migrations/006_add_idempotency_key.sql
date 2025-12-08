@@ -28,3 +28,4 @@ ON submissions(employee_id, (get_submission_month_year(submission_date)));
 -- Comment on the new column
 COMMENT ON COLUMN submissions.idempotency_key IS 'Unique key per submission attempt to prevent duplicates from double-clicks';
 
+
