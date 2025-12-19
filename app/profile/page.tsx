@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, X } from 'lucide-react'
 import { getEmployeeById, updateEmployeeProfile } from '@/lib/supabase/queries/employees'
+import { Combobox } from '@/components/ui/combobox'
 
 type TabType = 'personal' | 'banking' | 'project'
 
@@ -485,16 +486,18 @@ export default function Profile() {
                       Account Type <span className="text-red-500">*</span>
                     </label>
                     {isEditing ? (
-                      <select
+                      <Combobox
                         required
+                        placeholder="Select account type"
                         value={formData.banking.accountType}
-                        onChange={(e) => updateBankingField('accountType', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
-                      >
-                        <option value="Checking">Checking</option>
-                        <option value="Savings">Savings</option>
-                        <option value="Money Market">Money Market</option>
-                      </select>
+                        onChange={(value) => updateBankingField('accountType', value)}
+                        options={[
+                          { value: 'Checking', label: 'Checking' },
+                          { value: 'Savings', label: 'Savings' },
+                          { value: 'Money Market', label: 'Money Market' },
+                        ]}
+                        clearable={false}
+                      />
                     ) : (
                       <div className="text-gray-900">{profile.banking.accountType}</div>
                     )}
@@ -505,18 +508,20 @@ export default function Profile() {
                       Currency <span className="text-red-500">*</span>
                     </label>
                     {isEditing ? (
-                      <select
+                      <Combobox
                         required
+                        placeholder="Select currency"
                         value={formData.banking.currency}
-                        onChange={(e) => updateBankingField('currency', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
-                      >
-                        <option value="USD">USD</option>
-                        <option value="EUR">EUR</option>
-                        <option value="GBP">GBP</option>
-                        <option value="CAD">CAD</option>
-                        <option value="AUD">AUD</option>
-                      </select>
+                        onChange={(value) => updateBankingField('currency', value)}
+                        options={[
+                          { value: 'USD', label: 'USD', sublabel: 'US Dollar' },
+                          { value: 'EUR', label: 'EUR', sublabel: 'Euro' },
+                          { value: 'GBP', label: 'GBP', sublabel: 'British Pound' },
+                          { value: 'CAD', label: 'CAD', sublabel: 'Canadian Dollar' },
+                          { value: 'AUD', label: 'AUD', sublabel: 'Australian Dollar' },
+                        ]}
+                        clearable={false}
+                      />
                     ) : (
                       <div className="text-gray-900">{profile.banking.currency}</div>
                     )}
@@ -605,24 +610,22 @@ export default function Profile() {
                             </span>
                           ))}
                         </div>
-                        <select
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              addProjectType(e.target.value)
-                              e.target.value = ''
+                        <Combobox
+                          placeholder="Select a project type to add"
+                          value=""
+                          onChange={(value) => {
+                            if (value) {
+                              addProjectType(value)
                             }
                           }}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none bg-white"
-                        >
-                          <option value="">Select a project type to add</option>
-                          {availableProjectTypes
+                          options={availableProjectTypes
                             .filter((type) => !formData.project.projectTypes.includes(type))
-                            .map((type) => (
-                              <option key={type} value={type}>
-                                {type}
-                              </option>
-                            ))}
-                        </select>
+                            .map((type) => ({
+                              value: type,
+                              label: type,
+                            }))}
+                          emptyMessage="No project types available"
+                        />
                       </div>
                     ) : (
                       <div className="flex flex-wrap gap-2">

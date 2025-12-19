@@ -1,5 +1,8 @@
 // Types for the Employee Detail Drawer
 
+// User role types
+export type UserRole = 'ADMIN' | 'MANAGER' | 'EMPLOYEE'
+
 export interface EmployeeDetail {
   id: string
   name: string
@@ -9,6 +12,10 @@ export interface EmployeeDetail {
   status: 'Active' | 'Inactive'
   hourlyRate: number
   overtimeRate?: number
+  // Access control fields
+  role: UserRole
+  reportingManagerId?: string | null
+  reportingManagerName?: string | null
 }
 
 export interface Submission {
@@ -33,8 +40,10 @@ export interface Invoice {
 export interface ContractInfo {
   startDate: string
   endDate?: string
+  rateType: 'hourly' | 'fixed'
   hourlyRate: number
   overtimeRate?: number
+  fixedIncome?: number
   positionTitle: string
   department: string
   reportingManager: string

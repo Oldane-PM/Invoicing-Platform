@@ -5,6 +5,7 @@ import { X, CheckCircle } from 'lucide-react'
 import { EmployeeSubmissionsTab } from './EmployeeSubmissionsTab'
 import { EmployeeInvoicesTab } from './EmployeeInvoicesTab'
 import { EmployeeContractInfoTab } from './EmployeeContractInfoTab'
+import { EmployeeAccessControlTab } from './EmployeeAccessControlTab'
 import { EmployeeStatusLogTab } from './EmployeeStatusLogTab'
 import {
   EmployeeDetail,
@@ -12,6 +13,7 @@ import {
   Invoice,
   ContractInfo,
   StatusLogEntry,
+  UserRole,
 } from './types'
 
 interface EmployeeDetailDrawerProps {
@@ -21,7 +23,7 @@ interface EmployeeDetailDrawerProps {
   onManagerUpdate?: (employeeId: string, managerId: string | null, managerName: string | null) => void
 }
 
-type TabValue = 'submissions' | 'invoices' | 'contract' | 'status-log'
+type TabValue = 'submissions' | 'invoices' | 'contract' | 'access-control' | 'status-log'
 
 interface ToastState {
   show: boolean
@@ -157,11 +159,13 @@ export function EmployeeDetailDrawer({
 
   if (!employee) return null
 
+  // Tabs ordered as per design: Submissions, Invoices, Contract Info, Access Control, Status Log
   const tabs = [
-    { value: 'status-log' as TabValue, label: 'Status Log' },
-    { value: 'contract' as TabValue, label: 'Contract Info' },
-    { value: 'invoices' as TabValue, label: 'Invoices' },
     { value: 'submissions' as TabValue, label: 'Submissions' },
+    { value: 'invoices' as TabValue, label: 'Invoices' },
+    { value: 'contract' as TabValue, label: 'Contract\nInfo' },
+    { value: 'access-control' as TabValue, label: 'Access\nControl' },
+    { value: 'status-log' as TabValue, label: 'Status\nLog' },
   ]
 
   const contractorTypeConfig: Record<string, { bg: string; text: string }> = {
@@ -278,6 +282,21 @@ export function EmployeeDetailDrawer({
                   onManagerUpdate={(managerId, managerName) => {
                     // Notify parent component (Employee Directory) about manager change
                     onManagerUpdate?.(employee.id, managerId, managerName)
+                  }}
+                />
+              )}
+              {activeTab === 'access-control' && employee && (
+                <EmployeeAccessControlTab
+                  employeeId={employee.id}
+                  currentRole={employee.role || 'EMPLOYEE'}
+                  currentManagerId={employee.reportingManagerId || null}
+                  currentManagerName={employee.reportingManagerName || null}
+                  managers={managers}
+                  onToast={showToast}
+                  onRoleUpdate={(role, managerId, managerName) => {
+                    // Update local employee state
+                    // This will be reflected on next data fetch
+                    console.log('Role updated:', { role, managerId, managerName })
                   }}
                 />
               )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { LogOut, Settings, FileText, Clock, User as UserIcon } from 'lucide-react'
+import { LogOut, Settings, FileText, Clock, User as UserIcon, Calendar } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { ReactNode } from 'react'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
@@ -20,6 +20,8 @@ interface AppHeaderProps {
   onPrimaryAction?: () => void
   /** Employee portal only: open the Profile page */
   onProfileClick?: () => void
+  /** Admin portal only: open Calendar Controls */
+  onCalendarClick?: () => void
 }
 
 const portalAccentClass: Record<Portal, string> = {
@@ -38,6 +40,7 @@ export function AppHeader({
   primaryActionIcon,
   onPrimaryAction,
   onProfileClick,
+  onCalendarClick,
 }: AppHeaderProps) {
   const router = useRouter()
 
@@ -106,6 +109,17 @@ export function AppHeader({
               </button>
             )}
 
+            {/* Calendar Controls - Admin only */}
+            {portal === 'admin' && onCalendarClick && (
+              <button
+                onClick={onCalendarClick}
+                className="p-2.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+                aria-label="Calendar Controls"
+                title="Calendar Controls"
+              >
+                <Calendar className="w-5 h-5" />
+              </button>
+            )}
             <NotificationBell />
             <button
               className="p-2.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"

@@ -1,6 +1,6 @@
 'use client'
 
-import { X, ChevronRight, Bell, CheckCircle2, XCircle, AlertCircle, DollarSign, Clock, Users, UserMinus } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Bell, CheckCircle2, XCircle, AlertCircle, DollarSign, Clock, Users, UserMinus, FileText, Calendar } from 'lucide-react'
 import type { NotificationRecord } from '@/lib/notifications'
 
 interface NotificationDrawerProps {
@@ -9,6 +9,8 @@ interface NotificationDrawerProps {
   notifications: NotificationRecord[]
   onNotificationClick: (notification: NotificationRecord) => void
   onMarkAllRead: () => void
+  selectedNotification: NotificationRecord | null
+  onBackToList: () => void
 }
 
 // Get notification styling based on type
@@ -124,14 +126,292 @@ function getEntityLabel(notification: NotificationRecord): string | null {
   return null
 }
 
+// Format full date for detail view
+function formatFullDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+// Get notification type label
+function getNotificationTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    'HOURS_APPROVED': 'Hours Approved',
+    'HOURS_REJECTED_MANAGER': 'Rejected by Manager',
+    'HOURS_REJECTED_ADMIN': 'Rejected by Admin',
+    'HOURS_CLARIFICATION_MANAGER': 'Clarification Requested (Manager)',
+    'HOURS_CLARIFICATION_ADMIN': 'Clarification Requested (Admin)',
+    'PAYMENT_PROCESSED': 'Payment Processed',
+    'HOURS_SUBMITTED': 'Hours Submitted',
+    'TEAM_ADDED': 'Added to Team',
+    'TEAM_REMOVED': 'Removed from Team',
+  }
+  return labels[type] || type
+}
+
 export function NotificationDrawer({
   open,
   onClose,
   notifications,
   onNotificationClick,
   onMarkAllRead,
+  selectedNotification,
+  onBackToList,
 }: NotificationDrawerProps) {
   const unreadCount = notifications.filter(n => !n.is_read).length
+
+  // Render notification detail view
+  const renderDetailView = () => {
+    if (!selectedNotification) return null
+    
+    const style = getNotificationStyle(selectedNotification.type)
+    const IconComponent = style.icon
+    const entityLabel = getEntityLabel(selectedNotification)
+    const metadata = selectedNotification.metadata as Record<string, any> | null
+
+    return (
+      <div className="flex flex-col h-full">
+        {/* Header with back button */}
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <button
+            type="button"
+            onClick={onBackToList}
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            <span className="font-medium">Back</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Detail content */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {/* Type Badge and Icon */}
+          <div className="flex items-start gap-4 mb-6">
+            <div className={`shrink-0 w-12 h-12 rounded-full ${style.iconBg} flex items-center justify-center`}>
+              <IconComponent className={`w-6 h-6 ${style.iconColor}`} />
+            </div>
+            <div>
+              <span className={`inline-flex px-2.5 py-1 text-xs font-medium rounded-full ${style.iconBg} ${style.iconColor}`}>
+                {getNotificationTypeLabel(selectedNotification.type)}
+              </span>
+              {!selectedNotification.is_read && (
+                <span className="ml-2 inline-flex px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-600 rounded-full">
+                  Unread
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Title */}
+          <h2 className="text-xl font-bold text-slate-900 mb-3">
+            {selectedNotification.title}
+          </h2>
+
+          {/* Message */}
+          <div className="bg-slate-50 rounded-xl p-4 mb-6">
+            <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+              {selectedNotification.message}
+            </p>
+          </div>
+
+          {/* Metadata section */}
+          <div className="space-y-4">
+            {/* Entity Reference */}
+            {entityLabel && (
+              <div className="flex items-center gap-3 p-3 bg-primary-50 rounded-lg">
+                <FileText className="w-5 h-5 text-primary-600" />
+                <div>
+                  <p className="text-xs text-primary-600 font-medium">Reference</p>
+                  <p className="text-sm font-semibold text-primary-700">{entityLabel}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Timestamp */}
+            <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-lg">
+              <Calendar className="w-5 h-5 text-slate-600" />
+              <div>
+                <p className="text-xs text-slate-500 font-medium">Received</p>
+                <p className="text-sm text-slate-700">{formatFullDate(selectedNotification.created_at)}</p>
+              </div>
+            </div>
+
+            {/* Additional metadata if available */}
+            {metadata && Object.keys(metadata).length > 0 && (
+              <div className="p-4 bg-slate-50 rounded-lg">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Additional Details</p>
+                <dl className="space-y-2">
+                  {metadata.monthYear && (
+                    <div className="flex justify-between">
+                      <dt className="text-sm text-slate-600">Period</dt>
+                      <dd className="text-sm font-medium text-slate-900">{metadata.monthYear}</dd>
+                    </div>
+                  )}
+                  {metadata.hours !== undefined && (
+                    <div className="flex justify-between">
+                      <dt className="text-sm text-slate-600">Hours</dt>
+                      <dd className="text-sm font-medium text-slate-900">{metadata.hours}h</dd>
+                    </div>
+                  )}
+                  {metadata.amount !== undefined && (
+                    <div className="flex justify-between">
+                      <dt className="text-sm text-slate-600">Amount</dt>
+                      <dd className="text-sm font-medium text-green-600">
+                        ${typeof metadata.amount === 'number' ? metadata.amount.toFixed(2) : metadata.amount}
+                      </dd>
+                    </div>
+                  )}
+                  {metadata.employeeName && (
+                    <div className="flex justify-between">
+                      <dt className="text-sm text-slate-600">Employee</dt>
+                      <dd className="text-sm font-medium text-slate-900">{metadata.employeeName}</dd>
+                    </div>
+                  )}
+                  {metadata.reason && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                      <dt className="text-sm text-slate-600 mb-1">Reason</dt>
+                      <dd className="text-sm text-slate-900 whitespace-pre-wrap">{metadata.reason}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
+
+            {/* Notification ID (for debugging) */}
+            <div className="pt-4 border-t border-slate-200">
+              <p className="text-xs text-slate-400">
+                ID: {selectedNotification.id.slice(0, 8)}...
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Render list view
+  const renderListView = () => (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
+          {unreadCount > 0 && (
+            <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-600 rounded-full">
+              {unreadCount} new
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          aria-label="Close notifications"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Mark all read button */}
+      {unreadCount > 0 && (
+        <div className="px-5 py-2 border-b border-slate-100 bg-slate-50">
+          <button
+            type="button"
+            onClick={onMarkAllRead}
+            className="text-sm font-medium text-primary-600 hover:text-primary-700"
+          >
+            Mark all as read
+          </button>
+        </div>
+      )}
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto">
+        {notifications.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center px-6">
+            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+              <Bell className="w-8 h-8 text-slate-400" />
+            </div>
+            <p className="text-sm font-medium text-slate-900">You're all caught up</p>
+            <p className="mt-1 text-xs text-slate-500">
+              New notifications will appear here when there are updates.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {notifications.map((notification) => {
+              const isUnread = !notification.is_read
+              const style = getNotificationStyle(notification.type)
+              const IconComponent = style.icon
+              const timestamp = formatRelativeTime(notification.created_at)
+              const entityLabel = getEntityLabel(notification)
+
+              return (
+                <li key={notification.id}>
+                  <button
+                    type="button"
+                    onClick={() => onNotificationClick(notification)}
+                    className={`w-full text-left px-5 py-4 flex items-start gap-3 transition-colors border-l-4 ${
+                      isUnread
+                        ? `bg-slate-50 ${style.borderColor} hover:bg-slate-100`
+                        : 'border-transparent hover:bg-slate-50'
+                    }`}
+                  >
+                    {/* Icon */}
+                    <div className={`shrink-0 w-8 h-8 rounded-full ${style.iconBg} flex items-center justify-center mt-0.5`}>
+                      <IconComponent className={`w-4 h-4 ${style.iconColor}`} />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className={`text-sm ${isUnread ? 'font-semibold' : 'font-medium'} text-slate-900`}>
+                          {notification.title}
+                        </p>
+                        {isUnread && (
+                          <span className="shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1.5" />
+                        )}
+                      </div>
+                      <p className="text-sm text-slate-600 mt-0.5 line-clamp-2">
+                        {notification.message}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
+                        <span>{timestamp}</span>
+                        {entityLabel && (
+                          <>
+                            <span>•</span>
+                            <span className="text-primary-500">{entityLabel}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Chevron */}
+                    <ChevronRight className="shrink-0 w-5 h-5 text-slate-300 mt-0.5" />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
 
   return (
     <>
@@ -149,111 +429,7 @@ export function NotificationDrawer({
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
-              {unreadCount > 0 && (
-                <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-600 rounded-full">
-                  {unreadCount} new
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              aria-label="Close notifications"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Mark all read button */}
-          {unreadCount > 0 && (
-            <div className="px-5 py-2 border-b border-slate-100 bg-slate-50">
-              <button
-                type="button"
-                onClick={onMarkAllRead}
-                className="text-sm font-medium text-primary-600 hover:text-primary-700"
-              >
-                Mark all as read
-              </button>
-            </div>
-          )}
-
-          {/* List */}
-          <div className="flex-1 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                  <Bell className="w-8 h-8 text-slate-400" />
-                </div>
-                <p className="text-sm font-medium text-slate-900">You're all caught up</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  New notifications will appear here when there are updates.
-                </p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {notifications.map((notification) => {
-                  const isUnread = !notification.is_read
-                  const style = getNotificationStyle(notification.type)
-                  const IconComponent = style.icon
-                  const timestamp = formatRelativeTime(notification.created_at)
-                  const entityLabel = getEntityLabel(notification)
-
-                  return (
-                    <li key={notification.id}>
-                      <button
-                        type="button"
-                        onClick={() => onNotificationClick(notification)}
-                        className={`w-full text-left px-5 py-4 flex items-start gap-3 transition-colors border-l-4 ${
-                          isUnread
-                            ? `bg-slate-50 ${style.borderColor} hover:bg-slate-100`
-                            : 'border-transparent hover:bg-slate-50'
-                        }`}
-                      >
-                        {/* Icon */}
-                        <div className={`shrink-0 w-8 h-8 rounded-full ${style.iconBg} flex items-center justify-center mt-0.5`}>
-                          <IconComponent className={`w-4 h-4 ${style.iconColor}`} />
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className={`text-sm ${isUnread ? 'font-semibold' : 'font-medium'} text-slate-900`}>
-                              {notification.title}
-                            </p>
-                            {isUnread && (
-                              <span className="shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1.5" />
-                            )}
-                          </div>
-                          <p className="text-sm text-slate-600 mt-0.5 line-clamp-2">
-                            {notification.message}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
-                            <span>{timestamp}</span>
-                            {entityLabel && (
-                              <>
-                                <span>•</span>
-                                <span className="text-primary-500">{entityLabel}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Chevron */}
-                        <ChevronRight className="shrink-0 w-5 h-5 text-slate-300 mt-0.5" />
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
+        {selectedNotification ? renderDetailView() : renderListView()}
       </div>
     </>
   )

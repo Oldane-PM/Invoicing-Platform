@@ -1,121 +1,94 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useMemo } from 'react'
 import { Bell } from 'lucide-react'
 import {
   type NotificationRecord,
   type NotificationRole,
-  getNotificationTargetUrl,
 } from '@/lib/notifications'
 import { NotificationDrawer } from './NotificationDrawer'
+import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsRead } from '@/hooks'
 
 export function NotificationBell() {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [notifications, setNotifications] = useState<NotificationRecord[]>([])
-  const [loading, setLoading] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
+  
+  // State for viewing notification details in drawer
+  const [selectedNotification, setSelectedNotification] = useState<NotificationRecord | null>(null)
 
-  const fetchNotifications = useCallback(async () => {
-    if (typeof window === 'undefined') return
-
-    const userRole = (localStorage.getItem('userRole') ||
-      '') as 'employee' | 'manager' | 'admin' | ''
-    const userId = localStorage.getItem('employeeId')
-
-    if (!userId || !userRole) {
-      return
-    }
-
-    const role: NotificationRole =
-      userRole === 'employee'
-        ? 'EMPLOYEE'
-        : userRole === 'manager'
-        ? 'MANAGER'
-        : 'ADMIN'
-
-    try {
-      setLoading(true)
-      const params = new URLSearchParams({ userId, role })
-      const res = await fetch(`/api/notifications?${params.toString()}`, {
-        method: 'GET',
-        cache: 'no-store',
-      })
-
-      if (!res.ok) {
-        console.error('Failed to load notifications')
-        return
-      }
-
-      const data = await res.json()
-      setNotifications(data.notifications || [])
-    } catch (error) {
-      console.error('Error loading notifications:', error)
-    } finally {
-      setLoading(false)
+  // Load user info from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setUserId(localStorage.getItem('employeeId'))
+      setUserRole(localStorage.getItem('userRole'))
     }
   }, [])
 
-  useEffect(() => {
-    fetchNotifications()
+  // Use TanStack Query hook for notifications with auto-refresh
+  const { 
+    data: notificationsData, 
+    isLoading: loading,
+    refetch: refetchNotifications
+  } = useNotifications(
+    { recipientId: userId || undefined, role: userRole || undefined },
+    { enabled: !!userId }
+  )
 
-    const interval = setInterval(() => {
-      fetchNotifications()
-    }, 30000)
+  // Mutations
+  const markAsRead = useMarkNotificationAsRead()
+  const markAllAsRead = useMarkAllNotificationsAsRead()
 
-    return () => clearInterval(interval)
-  }, [fetchNotifications])
+  // Transform to expected format
+  const notifications: NotificationRecord[] = useMemo(() => {
+    if (!notificationsData) return []
+    return notificationsData.map((n: any) => ({
+      id: n.id,
+      user_id: n.recipient_id || userId || '',
+      role: (userRole?.toUpperCase() || 'EMPLOYEE') as NotificationRole,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      entity_type: n.metadata?.entity_type || null,
+      entity_id: n.metadata?.entity_id || null,
+      is_read: n.read ?? false,
+      metadata: n.metadata || null,
+      created_at: n.created_at,
+    }))
+  }, [notificationsData, userId, userRole])
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
 
   const handleNotificationClick = async (notification: NotificationRecord) => {
-    if (typeof window === 'undefined') return
-
-    const userId = localStorage.getItem('employeeId')
     if (!userId) return
 
-    try {
-      await fetch('/api/notifications/mark-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notificationId: notification.id, userId }),
-      })
-    } catch (error) {
-      console.error('Failed to mark notification as read', error)
-    }
+    // Open notification in detail view (no navigation!)
+    setSelectedNotification(notification)
 
-    setOpen(false)
-    await fetchNotifications()
-
-    const targetUrl = getNotificationTargetUrl(notification)
-    if (targetUrl) {
-      router.push(targetUrl)
+    // Mark as read if not already
+    if (!notification.is_read) {
+      try {
+        await markAsRead.mutateAsync(notification.id)
+      } catch (error) {
+        console.error('Failed to mark notification as read', error)
+      }
     }
   }
 
+  const handleBackToList = () => {
+    setSelectedNotification(null)
+  }
+
+  const handleCloseDrawer = () => {
+    setOpen(false)
+    setSelectedNotification(null)
+  }
+
   const handleMarkAllRead = async () => {
-    if (typeof window === 'undefined') return
-
-    const userRole = (localStorage.getItem('userRole') ||
-      '') as 'employee' | 'manager' | 'admin' | ''
-    const userId = localStorage.getItem('employeeId')
-
-    if (!userId || !userRole) return
-
-    const role: NotificationRole =
-      userRole === 'employee'
-        ? 'EMPLOYEE'
-        : userRole === 'manager'
-        ? 'MANAGER'
-        : 'ADMIN'
+    if (!userId) return
 
     try {
-      await fetch('/api/notifications/mark-all-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, role }),
-      })
-      await fetchNotifications()
+      await markAllAsRead.mutateAsync(userId)
     } catch (error) {
       console.error('Failed to mark notifications as read', error)
     }
@@ -139,10 +112,12 @@ export function NotificationBell() {
 
       <NotificationDrawer
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={handleCloseDrawer}
         notifications={notifications}
         onNotificationClick={handleNotificationClick}
         onMarkAllRead={handleMarkAllRead}
+        selectedNotification={selectedNotification}
+        onBackToList={handleBackToList}
       />
     </>
   )

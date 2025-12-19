@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
     let errorCount = 0
 
     // Update submissions for each employee
-    for (const [employeeId, managerId] of Array.from(employeeManagerMap.entries())) {
-      const { data: updatedRows, error: updateError } = await supabaseAdmin
+    for (const [employeeId, managerId] of employeeManagerMap) {
+      const { error: updateError, count } = await supabaseAdmin
         .from('submissions')
         .update({ 
           manager_id: managerId,
@@ -51,14 +51,14 @@ export async function POST(request: NextRequest) {
         })
         .eq('employee_id', employeeId)
         .neq('manager_id', managerId) // Only update if different
-        .select('id')
+        .select('id', { count: 'exact' })
 
       if (updateError) {
         console.error(`Error updating submissions for employee ${employeeId}:`, updateError)
         errorCount++
-      } else if (updatedRows && updatedRows.length > 0) {
-        updatedCount += updatedRows.length
-        console.log(`Updated ${updatedRows.length} submissions for employee ${employeeId} to manager ${managerId}`)
+      } else if (count && count > 0) {
+        updatedCount += count
+        console.log(`Updated ${count} submissions for employee ${employeeId} to manager ${managerId}`)
       }
     }
 

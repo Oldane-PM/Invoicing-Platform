@@ -148,12 +148,16 @@ export async function markAllNotificationsRead(userId: string, role?: Notificati
 
 /**
  * Derive a navigation target URL for a given notification.
- * This is used by the NotificationDrawer/bell on the client.
+ * NOTE: This is kept for backwards compatibility but notifications now open in a drawer
+ * instead of navigating. See NotificationDrawer.tsx for the new behavior.
  */
 export function getNotificationTargetUrl(notification: NotificationRecord): string | null {
   switch (notification.entity_type) {
     case 'SUBMISSION':
-      return notification.entity_id ? `/submissions/${notification.entity_id}` : null
+      if (!notification.entity_id) {
+        return null
+      }
+      return `/submissions/${notification.entity_id}`
     default:
       return null
   }

@@ -9,6 +9,7 @@ import { SubmissionDetailDrawer } from './_components/SubmissionDetailDrawer'
 import type { Submission } from '@/types/domain'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { FilterPanel } from '@/components/common/FilterPanel'
+import { Combobox } from '@/components/ui/combobox'
 
 interface SubmissionWithEmployee extends Submission {
   employee: {
@@ -45,22 +46,53 @@ export default function ManagerDashboard() {
   }
 
   useEffect(() => {
-    // Check if user is authenticated and is a manager
+    // Check if user is authenticated and is a manager or admin
     const userRole = localStorage.getItem('userRole')
-    if (!userRole || userRole !== 'manager') {
-      router.push('/login')
+    // Support both uppercase and lowercase role checks
+    const isManager = userRole === 'MANAGER' || userRole === 'manager'
+    const isAdmin = userRole === 'ADMIN' || userRole === 'admin'
+    
+    // Managers and Admins can access this page
+    if (!userRole || (!isManager && !isAdmin)) {
+      // Show unauthorized message and redirect
+      if (userRole) {
+        showUnauthorizedToast()
+        // Employees go to their dashboard
+        router.push('/')
+      } else {
+        router.push('/sign-in')
+      }
       return
     }
 
-    // Get manager ID from storage (should come from Better-Auth session in production)
+    // Get manager ID from storage
+    const storedEmployeeId = localStorage.getItem('employeeId')
     const storedManagerId = localStorage.getItem('managerId')
-    if (storedManagerId) {
-      setManagerId(storedManagerId)
+    const effectiveManagerId = storedManagerId || storedEmployeeId
+    
+    if (effectiveManagerId) {
+      setManagerId(effectiveManagerId)
     } else {
-      // Redirect to login if no manager ID
-      router.push('/login')
+      router.push('/sign-in')
     }
   }, [router])
+  
+  const showUnauthorizedToast = () => {
+    if (typeof window !== 'undefined') {
+      const toastDiv = document.createElement('div')
+      toastDiv.className = 'fixed top-4 right-4 z-[100] bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg shadow-lg'
+      toastDiv.innerHTML = `
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <span>You don't have access to that area.</span>
+        </div>
+      `
+      document.body.appendChild(toastDiv)
+      setTimeout(() => toastDiv.remove(), 4000)
+    }
+  }
 
   useEffect(() => {
     if (managerId) {
@@ -302,40 +334,36 @@ export default function ManagerDashboard() {
                 </div>
 
                 {/* Status filter */}
-                <div className="relative w-full md:w-56">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) =>
-                      setStatusFilter(e.target.value as 'all' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'MANAGER_REJECTED' | 'NEEDS_CLARIFICATION')
-                    }
-                    className="w-full appearance-none px-4 py-2.5 pr-10 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="SUBMITTED">Pending Review</option>
-                    <option value="MANAGER_APPROVED">Approved</option>
-                    <option value="MANAGER_REJECTED">Rejected</option>
-                    <option value="NEEDS_CLARIFICATION">Needs Clarification</option>
-                  </select>
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                    ▾
-                  </span>
-                </div>
+                <Combobox
+                  placeholder="All Statuses"
+                  value={statusFilter}
+                  onChange={(value) =>
+                    setStatusFilter(value as 'all' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'MANAGER_REJECTED' | 'NEEDS_CLARIFICATION')
+                  }
+                  options={[
+                    { value: 'all', label: 'All Statuses' },
+                    { value: 'SUBMITTED', label: 'Pending Review' },
+                    { value: 'MANAGER_APPROVED', label: 'Approved' },
+                    { value: 'MANAGER_REJECTED', label: 'Rejected' },
+                    { value: 'NEEDS_CLARIFICATION', label: 'Needs Clarification' },
+                  ]}
+                  className="w-full md:w-56"
+                  clearable={false}
+                />
 
                 {/* Time filter */}
-                <div className="relative w-full md:w-52">
-                  <select
-                    value={timeFilter}
-                    onChange={(e) => setTimeFilter(e.target.value as 'all' | '30' | '90')}
-                    className="w-full appearance-none px-4 py-2.5 pr-10 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                  >
-                    <option value="all">All Time</option>
-                    <option value="30">Last 30 days</option>
-                    <option value="90">Last 90 days</option>
-                  </select>
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                    ▾
-                  </span>
-                </div>
+                <Combobox
+                  placeholder="All Time"
+                  value={timeFilter}
+                  onChange={(value) => setTimeFilter(value as 'all' | '30' | '90')}
+                  options={[
+                    { value: 'all', label: 'All Time' },
+                    { value: '30', label: 'Last 30 days' },
+                    { value: '90', label: 'Last 90 days' },
+                  ]}
+                  className="w-full md:w-52"
+                  clearable={false}
+                />
               </div>
 
               {/* Reset button */}
