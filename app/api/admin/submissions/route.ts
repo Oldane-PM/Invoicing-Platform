@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase/client'
 
-// Force dynamic rendering - this route uses searchParams
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
-
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
@@ -19,8 +15,7 @@ export async function GET(request: NextRequest) {
     // Order by most recent status change first, then by submission month
     let query = supabase
       .from('submissions')
-      .select(
-        `
+      .select(`
         *,
         employee:employees!submissions_employee_id_fkey (
           id,

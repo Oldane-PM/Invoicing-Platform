@@ -9,10 +9,10 @@ import {
   Building2, 
   User, 
   Pencil, 
-  Save,
-  ChevronDown
+  Save
 } from 'lucide-react'
 import { ContractInfo } from './types'
+import { Combobox } from '@/components/ui/combobox'
 
 interface EmployeeContractInfoTabProps {
   contractInfo: ContractInfo
@@ -66,9 +66,20 @@ export function EmployeeContractInfoTab({
     if (!formValues.startDate) {
       newErrors.startDate = 'Start date is required'
     }
-    if (!formValues.hourlyRate || formValues.hourlyRate <= 0) {
-      newErrors.hourlyRate = 'Valid hourly rate is required'
+    
+    // Validate based on rate type
+    if (!formValues.rateType) {
+      newErrors.rateType = 'Rate type is required'
+    } else if (formValues.rateType === 'hourly') {
+      if (!formValues.hourlyRate || formValues.hourlyRate <= 0) {
+        newErrors.hourlyRate = 'Valid hourly rate is required'
+      }
+    } else if (formValues.rateType === 'fixed') {
+      if (!formValues.fixedIncome || formValues.fixedIncome <= 0) {
+        newErrors.fixedIncome = 'Valid fixed income is required'
+      }
     }
+    
     if (!formValues.positionTitle.trim()) {
       newErrors.positionTitle = 'Position title is required'
     }
@@ -87,15 +98,28 @@ export function EmployeeContractInfoTab({
       const selectedManager = managers.find(m => m.name === formValues.reportingManager)
       const managerId = selectedManager?.id || formValues.reportingManagerId || null
 
+      // Prepare update payload based on rate type
+      const updatePayload: any = {
+        reporting_manager_id: managerId,
+        rate_type: formValues.rateType,
+      }
+
+      // Add rate fields based on type
+      if (formValues.rateType === 'hourly') {
+        updatePayload.hourly_rate = formValues.hourlyRate
+        updatePayload.overtime_rate = formValues.overtimeRate || null
+        updatePayload.monthly_rate = null // Clear fixed income if switching to hourly
+      } else if (formValues.rateType === 'fixed') {
+        updatePayload.monthly_rate = formValues.fixedIncome
+        updatePayload.hourly_rate = null // Clear hourly if switching to fixed
+        updatePayload.overtime_rate = null // Clear overtime if switching to fixed
+      }
+
       // Call the API to update employee info (including manager assignment)
       const response = await fetch(`/api/admin/employees/${employeeId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reporting_manager_id: managerId,
-          hourly_rate: formValues.hourlyRate,
-          // Note: other contract fields would be updated via team_members table in a full implementation
-        }),
+        body: JSON.stringify(updatePayload),
       })
 
       if (!response.ok) {
@@ -158,6 +182,17 @@ export function EmployeeContractInfoTab({
         </div>
 
         <div className="rounded-2xl border border-slate-100 bg-white overflow-hidden">
+          {/* Rate Type */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-slate-500">
+              <DollarSign className="w-4 h-4" />
+              <span className="text-xs">Rate Type</span>
+            </div>
+            <span className="text-sm font-medium text-slate-900 mt-1 sm:mt-0 capitalize">
+              {formValues.rateType}
+            </span>
+          </div>
+
           {/* Start Date */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-100">
             <div className="flex items-center gap-2 text-slate-500">
@@ -186,27 +221,44 @@ export function EmployeeContractInfoTab({
             )}
           </div>
 
-          {/* Hourly Rate */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-100">
-            <div className="flex items-center gap-2 text-slate-500">
-              <DollarSign className="w-4 h-4" />
-              <span className="text-xs">Hourly Rate</span>
+          {/* Hourly Rate - Only show when rate type is hourly */}
+          {formValues.rateType === 'hourly' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-slate-500">
+                <DollarSign className="w-4 h-4" />
+                <span className="text-xs">Hourly Rate</span>
+              </div>
+              <span className="text-sm font-medium text-slate-900 mt-1 sm:mt-0">
+                ${formValues.hourlyRate.toFixed(2)}/hour
+              </span>
             </div>
-            <span className="text-sm font-medium text-slate-900 mt-1 sm:mt-0">
-              ${formValues.hourlyRate.toFixed(2)}/hour
-            </span>
-          </div>
+          )}
 
-          {/* Overtime Rate */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-100">
-            <div className="flex items-center gap-2 text-slate-500">
-              <Clock className="w-4 h-4" />
-              <span className="text-xs">Overtime Rate</span>
+          {/* Overtime Rate - Only show when rate type is hourly */}
+          {formValues.rateType === 'hourly' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-slate-500">
+                <Clock className="w-4 h-4" />
+                <span className="text-xs">Overtime Rate</span>
+              </div>
+              <span className="text-sm font-medium text-slate-900 mt-1 sm:mt-0">
+                {formValues.overtimeRate ? `$${formValues.overtimeRate.toFixed(2)}/hour` : 'N/A'}
+              </span>
             </div>
-            <span className="text-sm font-medium text-slate-900 mt-1 sm:mt-0">
-              {formValues.overtimeRate ? `$${formValues.overtimeRate.toFixed(2)}/hour` : 'N/A'}
-            </span>
-          </div>
+          )}
+
+          {/* Fixed Income - Only show when rate type is fixed */}
+          {formValues.rateType === 'fixed' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-slate-500">
+                <DollarSign className="w-4 h-4" />
+                <span className="text-xs">Fixed Income</span>
+              </div>
+              <span className="text-sm font-medium text-slate-900 mt-1 sm:mt-0">
+                ${(formValues.fixedIncome || 0).toLocaleString()}/month
+              </span>
+            </div>
+          )}
 
           {/* Position */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-100">
@@ -273,6 +325,21 @@ export function EmployeeContractInfoTab({
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white px-5 py-5 space-y-4">
+        {/* Rate Type */}
+        <Combobox
+          label="Rate Type"
+          required
+          placeholder="Select rate type"
+          value={formValues.rateType}
+          onChange={(value) => handleInputChange('rateType', value as 'hourly' | 'fixed')}
+          options={[
+            { value: 'hourly', label: 'Hourly', sublabel: 'Pay by the hour with overtime' },
+            { value: 'fixed', label: 'Fixed', sublabel: 'Monthly fixed payment' },
+          ]}
+          errorMessage={errors.rateType}
+          clearable={false}
+        />
+
         {/* Start Date / End Date */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -310,11 +377,53 @@ export function EmployeeContractInfoTab({
           </div>
         </div>
 
-        {/* Hourly Rate / Overtime Rate */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Conditional Fields - Hourly Rate & Overtime Rate (Show when rate type is hourly) */}
+        {formValues.rateType === 'hourly' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Hourly Rate <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formValues.hourlyRate}
+                  onChange={(e) => handleInputChange('hourlyRate', parseFloat(e.target.value) || 0)}
+                  className={`w-full pl-10 pr-3 h-11 rounded-xl border ${errors.hourlyRate ? 'border-red-300' : 'border-slate-200'} text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent`}
+                />
+              </div>
+              {errors.hourlyRate && (
+                <p className="text-xs text-red-500 mt-1">{errors.hourlyRate}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Overtime Rate
+              </label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formValues.overtimeRate || ''}
+                  onChange={(e) => handleInputChange('overtimeRate', parseFloat(e.target.value) || undefined)}
+                  placeholder="Optional"
+                  className="w-full pl-10 pr-3 h-11 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Conditional Field - Fixed Income (Show when rate type is fixed) */}
+        {formValues.rateType === 'fixed' && (
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
-              Hourly Rate <span className="text-red-500">*</span>
+              Fixed Income <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -322,32 +431,24 @@ export function EmployeeContractInfoTab({
                 type="number"
                 min="0"
                 step="0.01"
-                value={formValues.hourlyRate}
-                onChange={(e) => handleInputChange('hourlyRate', parseFloat(e.target.value) || 0)}
-                className={`w-full pl-10 pr-3 h-11 rounded-xl border ${errors.hourlyRate ? 'border-red-300' : 'border-slate-200'} text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent`}
+                value={formValues.fixedIncome || ''}
+                onChange={(e) => handleInputChange('fixedIncome', parseFloat(e.target.value) || undefined)}
+                placeholder="Monthly fixed payment"
+                className={`w-full pl-10 pr-3 h-11 rounded-xl border ${errors.fixedIncome ? 'border-red-300' : 'border-slate-200'} text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent`}
               />
             </div>
-            {errors.hourlyRate && (
-              <p className="text-xs text-red-500 mt-1">{errors.hourlyRate}</p>
+            <p className="text-xs text-slate-400 mt-1">Monthly fixed payment</p>
+            {errors.fixedIncome && (
+              <p className="text-xs text-red-500 mt-1">{errors.fixedIncome}</p>
             )}
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">
-              Overtime Rate
-            </label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={formValues.overtimeRate || ''}
-                onChange={(e) => handleInputChange('overtimeRate', parseFloat(e.target.value) || undefined)}
-                placeholder="Optional"
-                className="w-full pl-10 pr-3 h-11 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-              />
-            </div>
-          </div>
+        )}
+
+        {/* Yellow Warning Note */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+          <p className="text-sm text-yellow-800">
+            <strong>Note:</strong> Rate changes apply to future invoices only
+          </p>
         </div>
 
         {/* Position */}
@@ -371,64 +472,40 @@ export function EmployeeContractInfoTab({
         </div>
 
         {/* Department */}
-        <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1.5">
-            Department
-          </label>
-          <div className="relative">
-            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <select
-              value={formValues.department}
-              onChange={(e) => handleInputChange('department', e.target.value)}
-              className="w-full pl-10 pr-10 h-11 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent appearance-none bg-white"
-            >
-              {DEPARTMENTS.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          </div>
-        </div>
+        <Combobox
+          label="Department"
+          placeholder="Select department"
+          value={formValues.department}
+          onChange={(value) => handleInputChange('department', value)}
+          options={DEPARTMENTS.map(dept => ({
+            value: dept,
+            label: dept,
+          }))}
+          clearable={false}
+        />
 
         {/* Reporting Manager */}
-        <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1.5">
-            Reporting Manager
-          </label>
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            {managers.length > 0 ? (
-              <>
-                <select
-                  value={formValues.reportingManagerId || ''}
-                  onChange={(e) => {
-                    const selectedManager = managers.find(m => m.id === e.target.value)
-                    setFormValues(prev => ({
-                      ...prev,
-                      reportingManagerId: e.target.value || undefined,
-                      reportingManager: selectedManager?.name || ''
-                    }))
-                  }}
-                  className="w-full pl-10 pr-10 h-11 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent appearance-none bg-white"
-                >
-                  <option value="">Select manager</option>
-                  {managers.map(manager => (
-                    <option key={manager.id} value={manager.id}>{manager.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </>
-            ) : (
-              <input
-                type="text"
-                value={formValues.reportingManager}
-                onChange={(e) => handleInputChange('reportingManager', e.target.value)}
-                placeholder="Manager name"
-                className="w-full pl-10 pr-3 h-11 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-              />
-            )}
-          </div>
-        </div>
+        <Combobox
+          label="Reporting Manager"
+          placeholder="Select manager"
+          value={formValues.reportingManagerId || ''}
+          onChange={(value) => {
+            const selectedManager = managers.find(m => m.id === value)
+            setFormValues(prev => ({
+              ...prev,
+              reportingManagerId: value || undefined,
+              reportingManager: selectedManager?.name || ''
+            }))
+          }}
+          options={[
+            { value: '', label: 'No Manager' },
+            ...managers.map(manager => ({
+              value: manager.id,
+              label: manager.name,
+            })),
+          ]}
+          emptyMessage="No managers available"
+        />
       </div>
     </div>
   )

@@ -11,7 +11,7 @@ export async function GET() {
 
     const { data: employees, error } = await supabase
       .from('employees')
-      .select('id, name, email, hourly_rate, role')
+      .select('id, name, email, hourly_rate, status')
       .order('name', { ascending: true })
 
     if (error) {
@@ -31,7 +31,6 @@ export async function GET() {
     )
   }
 }
-
 
 
 

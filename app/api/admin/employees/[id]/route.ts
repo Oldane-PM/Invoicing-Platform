@@ -4,10 +4,10 @@ import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: employeeId } = await params
+    const employeeId = params.id
 
     // Get employee details
     const { data: employee, error: employeeError } = await supabase
@@ -114,7 +114,7 @@ export async function GET(
       .limit(1)
       .single()
 
-    // Build contract info
+    // Build contract info with rate type support
     const contractInfo = {
       startDate: teamMember?.contract_start
         ? new Date(teamMember.contract_start).toLocaleDateString('en-US', {
@@ -136,104 +136,50 @@ export async function GET(
             year: 'numeric',
           })
         : undefined,
+      rateType: employee.rate_type || 'hourly',
       hourlyRate: employee.hourly_rate || 0,
-      overtimeRate: (employee.hourly_rate || 0) * 1.5,
+      overtimeRate: employee.overtime_rate || (employee.hourly_rate || 0) * 1.5,
+      fixedIncome: employee.monthly_rate || undefined,
       positionTitle: teamMember?.project_name || 'Team Member',
       department: 'General',
       reportingManager: (teamMember?.manager as any)?.name || 'Unassigned',
       reportingManagerId: teamMember?.manager_id || undefined, // Include manager ID for form binding
     }
 
-    // Build comprehensive status log from submissions with actor details
-    const statusLog: any[] = []
-
-    // Get submissions with manager details for status log
-    const { data: submissionsWithActors, error: actorsError } = await supabase
-      .from('submissions')
-      .select(`
-        *,
-        actor:employees!submissions_acted_by_manager_id_fkey (
-          id,
-          name,
-          role
-        )
-      `)
+    // Get notifications as status log
+    const { data: notifications, error: notificationsError } = await supabase
+      .from('notifications')
+      .select('*')
       .eq('employee_id', employeeId)
-      .order('updated_at', { ascending: false })
-      .limit(20)
+      .order('created_at', { ascending: false })
+      .limit(10)
 
-    // Generate activity log entries from submissions
-    if (submissionsWithActors && submissionsWithActors.length > 0) {
-      for (const s of submissionsWithActors) {
-        const submissionDate = new Date(s.submission_date).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        })
+    // Format status log entries
+    const statusLog = (notifications || []).map(n => ({
+      id: n.id,
+      actionTitle: n.title,
+      timestamp: new Date(n.created_at).toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      description: n.message,
+      performedBy: 'System',
+    }))
 
-        // Map status to activity details
-        const statusDetails: Record<string, { title: string; description: string; performer: string }> = {
-          'SUBMITTED': {
-            title: 'Hours Submitted',
-            description: `Submitted ${s.hours_submitted || 0} hours${s.overtime_hours ? ` + ${s.overtime_hours} overtime` : ''} for ${submissionDate}`,
-            performer: employee.name,
-          },
-          'submitted': {
-            title: 'Hours Submitted',
-            description: `Submitted ${s.hours_submitted || 0} hours${s.overtime_hours ? ` + ${s.overtime_hours} overtime` : ''} for ${submissionDate}`,
-            performer: employee.name,
-          },
-          'MANAGER_APPROVED': {
-            title: 'Submission Approved by Manager',
-            description: `Hours for ${submissionDate} approved${s.manager_comment ? `. Comment: "${s.manager_comment}"` : ''}`,
-            performer: (s.actor as any)?.name || 'Manager',
-          },
-          'approved': {
-            title: 'Submission Approved',
-            description: `Hours for ${submissionDate} approved`,
-            performer: (s.actor as any)?.name || 'Manager',
-          },
-          'MANAGER_REJECTED': {
-            title: 'Submission Rejected by Manager',
-            description: `Hours for ${submissionDate} rejected${s.manager_comment ? `. Reason: "${s.manager_comment}"` : ''}`,
-            performer: (s.actor as any)?.name || 'Manager',
-          },
-          'rejected': {
-            title: 'Submission Rejected',
-            description: `Hours for ${submissionDate} rejected${s.rejection_reason ? `. Reason: "${s.rejection_reason}"` : ''}`,
-            performer: (s.actor as any)?.name || 'Manager',
-          },
-          'ADMIN_PAID': {
-            title: 'Payment Processed',
-            description: `Payment processed for hours submitted on ${submissionDate}${s.admin_comment ? `. Ref: ${s.admin_comment}` : ''}`,
-            performer: (s.actor as any)?.name || 'Admin',
-          },
-          'payment_done': {
-            title: 'Payment Processed',
-            description: `Payment processed for hours submitted on ${submissionDate}`,
-            performer: 'Admin',
-          },
-          'ADMIN_REJECTED': {
-            title: 'Submission Rejected by Admin',
-            description: `Hours for ${submissionDate} rejected by admin${s.admin_comment ? `. Reason: "${s.admin_comment}"` : ''}`,
-            performer: (s.actor as any)?.name || 'Admin',
-          },
-          'NEEDS_CLARIFICATION': {
-            title: 'Clarification Requested',
-            description: `Admin requested clarification for submission on ${submissionDate}${s.admin_comment ? `. Message: "${s.admin_comment}"` : ''}`,
-            performer: (s.actor as any)?.name || 'Admin',
-          },
-        }
+    // If no notifications, create log from submissions
+    if (statusLog.length === 0 && (submissions || []).length > 0) {
+      const submissionLogs = (submissions || []).map(s => {
+        let actionTitle = 'Submission Created'
+        if (s.status === 'approved') actionTitle = 'Submission Approved'
+        else if (s.status === 'rejected') actionTitle = 'Submission Rejected'
+        else if (s.status === 'payment_done') actionTitle = 'Payment Processed'
 
-        const details = statusDetails[s.status] || {
-          title: 'Status Updated',
-          description: `Submission for ${submissionDate} - Status: ${s.status}`,
-          performer: 'System',
-        }
-
-        statusLog.push({
-          id: `${s.id}-${s.status}`,
-          actionTitle: details.title,
+        return {
+          id: s.id,
+          actionTitle,
           timestamp: new Date(s.updated_at || s.created_at).toLocaleString('en-US', {
             year: 'numeric',
             month: '2-digit',
@@ -241,66 +187,12 @@ export async function GET(
             hour: '2-digit',
             minute: '2-digit',
           }),
-          description: details.description,
-          performedBy: details.performer,
-        })
-
-        // If the submission was created at a different time than updated, add creation entry
-        if (s.created_at && s.updated_at && s.created_at !== s.updated_at && s.status !== 'SUBMITTED' && s.status !== 'submitted') {
-          statusLog.push({
-            id: `${s.id}-created`,
-            actionTitle: 'Hours Submitted',
-            timestamp: new Date(s.created_at).toLocaleString('en-US', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            description: `Submitted ${s.hours_submitted || 0} hours${s.overtime_hours ? ` + ${s.overtime_hours} overtime` : ''} for ${submissionDate}`,
-            performedBy: employee.name,
-          })
+          description: s.description || 'Time submission',
+          performedBy: s.acted_by_manager_id ? 'Manager' : employee.name,
         }
-      }
+      })
+      statusLog.push(...submissionLogs)
     }
-
-    // Also get notifications for additional context
-    const { data: notifications, error: notificationsError } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', employeeId)
-      .order('created_at', { ascending: false })
-      .limit(10)
-
-    // Add notifications to status log
-    if (notifications && notifications.length > 0) {
-      for (const n of notifications) {
-        // Avoid duplicates by checking if similar entry exists
-        const existingEntry = statusLog.find(
-          log => log.actionTitle === n.title && 
-                 Math.abs(new Date(log.timestamp).getTime() - new Date(n.created_at).getTime()) < 60000
-        )
-        
-        if (!existingEntry) {
-          statusLog.push({
-            id: n.id,
-            actionTitle: n.title,
-            timestamp: new Date(n.created_at).toLocaleString('en-US', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            description: n.message,
-            performedBy: 'System',
-          })
-        }
-      }
-    }
-
-    // Sort by timestamp descending
-    statusLog.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 
     return NextResponse.json({
       employee,
@@ -324,16 +216,16 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id: employeeId } = await params
+    const employeeId = params.id
     const body = await request.json()
 
     const supabaseAdmin = getSupabaseAdmin()
 
     // Allowed fields on the employees table
-    const employeeFields = ['hourly_rate', 'status', 'active_project', 'manager_id']
+    const employeeFields = ['hourly_rate', 'overtime_rate', 'monthly_rate', 'rate_type', 'status', 'active_project', 'manager_id']
 
     // Filter to only allowed employee fields
     const employeeUpdateData: Record<string, any> = {}

@@ -8,11 +8,10 @@ import { supabase } from '@/lib/supabase/client'
 export async function GET() {
   try {
 
-    // Fetch all employees (non-admins) with available columns
+    // Fetch ALL employees from the database with all columns
     const { data: employees, error: employeesError } = await supabase
       .from('employees')
-      .select('id, name, email, hourly_rate, active_project, role, created_at')
-      .neq('role', 'admin')
+      .select('*')
       .order('name', { ascending: true })
 
     if (employeesError) {
@@ -23,95 +22,66 @@ export async function GET() {
       )
     }
 
-    // Fetch team member info for contract details (including manager relationships)
-    const { data: teamMembers, error: teamError } = await supabase
-      .from('team_members')
-      .select(`
-        id,
-        employee_id,
-        manager_id,
-        project_id,
-        project_name,
-        contract_start,
-        contract_end,
-        manager:employees!team_members_manager_id_fkey (
-          id,
-          name
-        )
-      `)
-
-    if (teamError) {
-      console.error('Error fetching team members:', teamError)
-    }
-
-    // Create a map of employee_id to their team member info
-    const teamMemberMap = new Map<string, any>()
-    if (teamMembers) {
-      for (const tm of teamMembers) {
-        // If an employee is in multiple teams, use the most recent one
-        const existing = teamMemberMap.get(tm.employee_id)
-        if (!existing || (tm.contract_start && existing.contract_start && new Date(tm.contract_start) > new Date(existing.contract_start))) {
-          teamMemberMap.set(tm.employee_id, tm)
-        } else if (!existing) {
-          teamMemberMap.set(tm.employee_id, tm)
+    // Get manager names for reporting_manager_id references
+    const managerIds = (employees || [])
+      .map(emp => emp.reporting_manager_id)
+      .filter((id): id is string => id !== null && id !== undefined)
+    
+    let managerNameMap = new Map<string, string>()
+    if (managerIds.length > 0) {
+      const { data: managers } = await supabase
+        .from('employees')
+        .select('id, name')
+        .in('id', managerIds)
+      
+      if (managers) {
+        for (const m of managers) {
+          managerNameMap.set(m.id, m.name)
         }
       }
     }
 
-
-    // Map employees with extended info
-    const employeesWithDetails = (employees || []).map((emp) => {
-      const teamInfo = teamMemberMap.get(emp.id)
-      
-      // Determine contract type based on role or project
-      let contractType = 'Internal Project' // default
-      if (emp.role === 'manager') {
-        contractType = 'Operational'
-      } else if (teamInfo?.project_name) {
-        // Use project name to determine type
-        const projectName = teamInfo.project_name.toLowerCase()
-        if (projectName.includes('client') || projectName.includes('external')) {
-          contractType = 'Client Facing Project'
-        } else if (projectName.includes('intern')) {
-          contractType = 'Intern'
-        } else if (projectName.includes('ops') || projectName.includes('operation')) {
-          contractType = 'Operational'
+    // Map employees with their details directly from the employees table
+    const employeesWithDetails = (employees || []).map((emp: any) => {
+      // Normalize status - handle various formats
+      let normalizedStatus = 'active'
+      if (emp.status) {
+        const statusLower = emp.status.toLowerCase()
+        if (statusLower === 'inactive' || statusLower === 'suspended' || statusLower === 'pending') {
+          normalizedStatus = statusLower
         }
       }
 
-      // Determine rate type - default to hourly if they have an hourly_rate
-      const rateType = emp.hourly_rate ? 'hourly' : 'fixed'
+      // Determine rate type from database or infer from rates
+      const rateType = emp.rate_type || (emp.hourly_rate ? 'hourly' : 'fixed')
       
-      // Estimate monthly rate as 160 hours * hourly rate
-      const monthlyRate = emp.hourly_rate ? emp.hourly_rate * 160 : 5000
+      // Calculate monthly rate if not set (160 hours * hourly rate)
+      const monthlyRate = emp.monthly_rate || (emp.hourly_rate ? emp.hourly_rate * 160 : null)
 
-      // Extract manager name - handle both object and array formats from Supabase
-      let managerName = null
-      if (teamInfo?.manager) {
-        // Could be an object or an array depending on Supabase response
-        if (Array.isArray(teamInfo.manager)) {
-          managerName = teamInfo.manager[0]?.name || null
-        } else {
-          managerName = teamInfo.manager.name || null
-        }
-      }
+      // Get manager name from lookup
+      const managerName = emp.reporting_manager_id 
+        ? managerNameMap.get(emp.reporting_manager_id) || null 
+        : null
 
       return {
         id: emp.id,
         name: emp.name,
         email: emp.email,
-        contract_start_date: teamInfo?.contract_start || emp.created_at || null,
-        contract_end_date: teamInfo?.contract_end || null,
+        contract_start_date: emp.contract_start_date || emp.created_at || null,
+        contract_end_date: emp.contract_end_date || null,
         rate_type: rateType as 'hourly' | 'fixed',
         hourly_rate: emp.hourly_rate || null,
         monthly_rate: monthlyRate,
-        overtime_rate: emp.hourly_rate ? Math.round(emp.hourly_rate * 1.5) : null,
-        position: teamInfo?.project_name || emp.active_project || 'Team Member',
-        contract_type: contractType,
-        reporting_manager_id: teamInfo?.manager_id || null,
+        overtime_rate: emp.overtime_rate || (emp.hourly_rate ? Math.round(emp.hourly_rate * 1.5) : null),
+        position: emp.position || emp.active_project || null,
+        contract_type: emp.contract_type || null,
+        reporting_manager_id: emp.reporting_manager_id || null,
         reporting_manager_name: managerName,
-        status: 'active', // Default to active since we don't have status column
-        role: emp.role,
+        status: normalizedStatus,
+        role: emp.role || 'employee',
+        country: emp.country || null,
+        region: emp.region || null,
+        onboarding_status: emp.onboarding_status || null,
       }
     })
 

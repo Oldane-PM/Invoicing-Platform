@@ -1,14 +1,21 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Download, Calendar, Clock, FileText, AlertCircle, Loader2 } from 'lucide-react'
-import { format } from 'date-fns'
+import { X, Download, Calendar, Clock, FileText, AlertCircle, Loader2, Lock, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react'
+import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { employeeCanEdit, getStatusDisplay, getEmployeeStatusLabel } from '@/lib/submission-status'
 import type { SubmissionStatus } from '@/types/domain'
 import type { SubmissionFrontend } from '@/lib/utils/dataTransform'
 
 // Alias for clarity
 type Submission = SubmissionFrontend
+
+interface BlockedDay {
+  date: string
+  type: 'HOLIDAY' | 'SPECIAL_DAY_OFF'
+  name: string
+  reason: string
+}
 
 interface SubmissionEditDrawerProps {
   submission: Submission | null
@@ -39,6 +46,9 @@ export function SubmissionEditDrawer({
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [blockedDays, setBlockedDays] = useState<BlockedDay[]>([])
+  const [hasBlockedDateConflict, setHasBlockedDateConflict] = useState(false)
+  const [feedbackExpanded, setFeedbackExpanded] = useState(true)
 
   // Initialize form when submission changes
   useEffect(() => {
@@ -52,8 +62,51 @@ export function SubmissionEditDrawer({
       })
       setError(null)
       setFieldErrors({})
+      
+      // Fetch blocked days and check for conflicts
+      checkForBlockedDateConflicts(submission.date)
     }
-  }, [submission])
+  }, [submission, employeeId])
+
+  // Check if submission date overlaps with blocked days
+  const checkForBlockedDateConflicts = async (submissionDate: string) => {
+    if (!employeeId || !submissionDate) return
+    
+    try {
+      const date = new Date(submissionDate)
+      const start = startOfMonth(date)
+      const end = endOfMonth(date)
+      
+      const params = new URLSearchParams({
+        employeeId,
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0],
+        employeeType: 'employee',
+      })
+      
+      const response = await fetch(`/api/employee/calendar/blocked-days?${params.toString()}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        const blocked = data.blockedDays || []
+        setBlockedDays(blocked)
+        
+        // Check if submission date is blocked
+        const subDateStr = date.toISOString().split('T')[0]
+        const isBlocked = blocked.some((b: BlockedDay) => b.date === subDateStr)
+        setHasBlockedDateConflict(isBlocked)
+      }
+    } catch (error) {
+      console.error('Error checking blocked days:', error)
+    }
+  }
+
+  // Get blocked day info for the submission date
+  const getBlockedDayInfo = (): BlockedDay | null => {
+    if (!formData.date || blockedDays.length === 0) return null
+    const subDateStr = new Date(formData.date).toISOString().split('T')[0]
+    return blockedDays.find(b => b.date === subDateStr) || null
+  }
 
   // Handle ESC key
   const handleKeyDown = useCallback(
@@ -145,6 +198,13 @@ export function SubmissionEditDrawer({
     // Prevent double-clicks
     if (saving) return
     if (!canEdit) return
+    
+    // Prevent saving if blocked date conflict
+    if (hasBlockedDateConflict) {
+      setError('Cannot save: This submission includes a date blocked by Admin.')
+      return
+    }
+    
     if (!validateForm()) return
 
     setSaving(true)
@@ -283,19 +343,57 @@ export function SubmissionEditDrawer({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
-          {/* Rejection Banner */}
+          {/* Reviewer Feedback Card - Only shown for rejected submissions */}
           {showRejectionBanner && rejectionComment && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-sm font-semibold text-red-800">Submission Rejected</h4>
-                  <p className="mt-1 text-sm text-red-700">{rejectionComment}</p>
-                  <p className="mt-2 text-xs text-red-600">
+            <div className="mb-6 bg-rose-50/70 border-l-4 border-rose-400 rounded-r-lg overflow-hidden">
+              {/* Card Header */}
+              <button
+                type="button"
+                onClick={() => setFeedbackExpanded(!feedbackExpanded)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-rose-50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-rose-500" />
+                  <span className="text-sm font-medium text-rose-800">Reviewer Feedback</span>
+                </div>
+                {feedbackExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-rose-500" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-rose-500" />
+                )}
+              </button>
+
+              {/* Card Content - Collapsible */}
+              {feedbackExpanded && (
+                <div className="px-4 pb-4">
+                  {/* Divider */}
+                  <div className="border-t border-rose-200/60 mb-3" />
+                  
+                  {/* Reason Label */}
+                  <p className="text-xs font-medium text-rose-600 uppercase tracking-wide mb-1.5">
+                    Reason
+                  </p>
+                  
+                  {/* Feedback Text - Constrained with overflow handling */}
+                  <div 
+                    className="text-sm text-rose-800 max-h-32 overflow-y-auto pr-2"
+                    style={{ 
+                      wordBreak: 'break-word', 
+                      overflowWrap: 'anywhere',
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: '#fecaca transparent'
+                    }}
+                  >
+                    {rejectionComment}
+                  </div>
+
+                  {/* Action hint */}
+                  <p className="mt-3 text-xs text-rose-600 flex items-center gap-1.5 pt-2 border-t border-rose-200/40">
+                    <AlertCircle className="w-3.5 h-3.5" />
                     Please update your submission and resubmit.
                   </p>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -305,6 +403,32 @@ export function SubmissionEditDrawer({
               <div className="flex items-center gap-2 text-red-700">
                 <AlertCircle className="w-5 h-5" />
                 <p className="text-sm">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Blocked Date Warning Banner */}
+          {hasBlockedDateConflict && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-xl">
+              <div className="flex items-start gap-3">
+                <Lock className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">
+                    ⚠️ This submission includes a blocked date
+                  </p>
+                  {(() => {
+                    const blockedInfo = getBlockedDayInfo()
+                    return blockedInfo ? (
+                      <p className="text-sm text-amber-700 mt-1">
+                        <strong>{blockedInfo.name}</strong> ({blockedInfo.type === 'HOLIDAY' ? 'Holiday' : 'Special Day Off'}) 
+                        on {format(new Date(blockedInfo.date), 'EEE, MMM d, yyyy')} is now marked as non-working by Admin.
+                      </p>
+                    ) : null
+                  })()}
+                  <p className="text-xs text-amber-600 mt-2">
+                    You cannot save this submission until the date is changed or the blocked day is removed by Admin.
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -468,18 +592,28 @@ export function SubmissionEditDrawer({
               </div>
             )}
 
-            {/* Manager/Admin Comments (Read-only) */}
-            {submission.managerComment && (
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                <h4 className="text-sm font-medium text-blue-800 mb-1">Manager Comment</h4>
-                <p className="text-sm text-blue-700">{submission.managerComment}</p>
+            {/* Manager/Admin Comments (Read-only) - Only show if not already shown in rejection feedback */}
+            {submission.managerComment && submission.status !== 'MANAGER_REJECTED' && (
+              <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
+                <h4 className="text-xs font-medium text-blue-600 uppercase tracking-wide mb-1.5">Manager Comment</h4>
+                <div 
+                  className="text-sm text-blue-800 max-h-28 overflow-y-auto"
+                  style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                >
+                  {submission.managerComment}
+                </div>
               </div>
             )}
 
-            {submission.adminComment && (
-              <div className="p-4 bg-violet-50 border border-violet-100 rounded-xl">
-                <h4 className="text-sm font-medium text-violet-800 mb-1">Admin Comment</h4>
-                <p className="text-sm text-violet-700">{submission.adminComment}</p>
+            {submission.adminComment && submission.status !== 'ADMIN_REJECTED' && (
+              <div className="p-4 bg-violet-50 border-l-4 border-violet-400 rounded-r-lg">
+                <h4 className="text-xs font-medium text-violet-600 uppercase tracking-wide mb-1.5">Admin Comment</h4>
+                <div 
+                  className="text-sm text-violet-800 max-h-28 overflow-y-auto"
+                  style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                >
+                  {submission.adminComment}
+                </div>
               </div>
             )}
           </div>
@@ -499,11 +633,17 @@ export function SubmissionEditDrawer({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={saving}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={saving || hasBlockedDateConflict}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                  hasBlockedDateConflict 
+                    ? 'bg-amber-500 cursor-not-allowed' 
+                    : 'bg-teal-600 hover:bg-teal-700'
+                }`}
+                title={hasBlockedDateConflict ? 'Cannot save - submission contains blocked dates' : undefined}
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span>{saving ? 'Saving...' : 'Save Changes'}</span>
+                {hasBlockedDateConflict && <Lock className="w-4 h-4" />}
+                <span>{saving ? 'Saving...' : hasBlockedDateConflict ? 'Blocked Date' : 'Save Changes'}</span>
               </button>
             )}
           </div>

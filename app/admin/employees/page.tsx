@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
   Search,
   X,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Users,
+  RefreshCw,
 } from 'lucide-react'
 import { EmployeeDetailDrawer, EmployeeDetail } from '@/components/admin/employee-drawer'
+import { Combobox } from '@/components/ui/combobox'
+import { useEmployees, useManagers, useUpdateEmployee } from '@/hooks'
 
 // Types
 interface Employee {
@@ -32,12 +34,6 @@ interface Employee {
   role: string
 }
 
-interface Manager {
-  id: string
-  name: string
-  email: string
-}
-
 // Contract Type Badge Configuration
 const contractTypeBadgeConfig: Record<string, { light: string; dark: string }> = {
   'Internal Project': { light: '#DBEAFE', dark: '#1E40AF' },
@@ -48,10 +44,61 @@ const contractTypeBadgeConfig: Record<string, { light: string; dark: string }> =
 
 export default function EmployeeDirectory() {
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([])
-  const [managers, setManagers] = useState<Manager[]>([])
+  
+  // Use TanStack Query hooks for data fetching with auto-refresh
+  const { 
+    data: employeesData, 
+    isLoading: loadingEmployees, 
+    refetch: refetchEmployees,
+    isRefetching 
+  } = useEmployees()
+  
+  const { data: managersData, isLoading: loadingManagers } = useManagers()
+  
+  // Update mutation
+  const updateEmployee = useUpdateEmployee()
+  
+  // Transform data for the component
+  const employees: Employee[] = useMemo(() => {
+    if (!employeesData) return []
+    return employeesData.map((emp: any) => ({
+      id: emp.id,
+      name: emp.name,
+      email: emp.email,
+      contract_start_date: emp.contract_start_date || emp.created_at || null,
+      contract_end_date: emp.contract_end_date || null,
+      rate_type: emp.rate_type || (emp.hourly_rate ? 'hourly' : 'fixed'),
+      hourly_rate: emp.hourly_rate || null,
+      monthly_rate: emp.monthly_rate || (emp.hourly_rate ? emp.hourly_rate * 160 : null),
+      overtime_rate: emp.overtime_rate || (emp.hourly_rate ? Math.round(emp.hourly_rate * 1.5) : null),
+      position: emp.position || emp.active_project || null,
+      contract_type: emp.contract_type || null,
+      reporting_manager_id: emp.reporting_manager_id || null,
+      reporting_manager_name: null, // Will be looked up
+      status: emp.status?.toLowerCase() || 'active',
+      role: emp.role || 'employee',
+    }))
+  }, [employeesData])
+  
+  const managers = useMemo(() => {
+    if (!managersData) return []
+    return managersData.map((m: any) => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+    }))
+  }, [managersData])
+  
+  // Add manager names to employees
+  const employeesWithManagers = useMemo(() => {
+    const managerMap = new Map(managers.map(m => [m.id, m.name]))
+    return employees.map(emp => ({
+      ...emp,
+      reporting_manager_name: emp.reporting_manager_id 
+        ? managerMap.get(emp.reporting_manager_id) || null 
+        : null
+    }))
+  }, [employees, managers])
   
   // Detail Drawer
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeDetail | null>(null)
@@ -68,59 +115,12 @@ export default function EmployeeDirectory() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
-  useEffect(() => {
-    // Check if user is authenticated and is an admin
-    const userRole = localStorage.getItem('userRole')
-    if (!userRole || userRole !== 'admin') {
-      router.push('/login')
-      return
-    }
-    loadInitialData()
-  }, [router])
+  // Combine loading states
+  const loading = loadingEmployees || loadingManagers
 
-  const loadInitialData = async () => {
-    try {
-      setLoading(true)
-      await Promise.all([loadEmployees(), loadManagers()])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadEmployees = async () => {
-    try {
-      const response = await fetch('/api/admin/employees/directory')
-      if (response.ok) {
-        const data = await response.json()
-        setEmployees(data.employees || [])
-        setFilteredEmployees(data.employees || [])
-      } else {
-        console.error('Failed to fetch employees')
-        setEmployees([])
-        setFilteredEmployees([])
-      }
-    } catch (error) {
-      console.error('Error loading employees:', error)
-      setEmployees([])
-      setFilteredEmployees([])
-    }
-  }
-
-  const loadManagers = async () => {
-    try {
-      const response = await fetch('/api/admin/managers')
-      if (response.ok) {
-        const data = await response.json()
-        setManagers(data.managers || [])
-      }
-    } catch (error) {
-      console.error('Error loading managers:', error)
-    }
-  }
-
-  // Apply filters
-  useEffect(() => {
-    let result = [...employees]
+  // Apply filters using useMemo for performance
+  const filteredEmployees = useMemo(() => {
+    let result = [...employeesWithManagers]
 
     // Search filter
     if (searchQuery) {
@@ -155,9 +155,13 @@ export default function EmployeeDirectory() {
       )
     }
 
-    setFilteredEmployees(result)
-    setCurrentPage(1) // Reset to first page when filters change
-  }, [employees, searchQuery, contractTypeFilter, managerFilter, rateTypeFilter, statusFilter])
+    return result
+  }, [employeesWithManagers, searchQuery, contractTypeFilter, managerFilter, rateTypeFilter, statusFilter])
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, contractTypeFilter, managerFilter, rateTypeFilter, statusFilter])
 
   const resetFilters = () => {
     setSearchQuery('')
@@ -174,6 +178,16 @@ export default function EmployeeDirectory() {
       .join('')
       .toUpperCase()
 
+    // Normalize role from database (lowercase) to app format (uppercase)
+    const normalizeRole = (role: string | null | undefined): 'ADMIN' | 'MANAGER' | 'EMPLOYEE' => {
+      if (!role) return 'EMPLOYEE'
+      const upperRole = role.toUpperCase()
+      if (upperRole === 'ADMIN' || upperRole === 'MANAGER' || upperRole === 'EMPLOYEE') {
+        return upperRole as 'ADMIN' | 'MANAGER' | 'EMPLOYEE'
+      }
+      return 'EMPLOYEE'
+    }
+
     const employeeDetail: EmployeeDetail = {
       id: employee.id,
       name: employee.name,
@@ -183,6 +197,10 @@ export default function EmployeeDirectory() {
       status: employee.status === 'active' ? 'Active' : 'Inactive',
       hourlyRate: employee.hourly_rate || employee.monthly_rate || 0,
       overtimeRate: employee.overtime_rate || undefined,
+      // Add role and reporting manager fields
+      role: normalizeRole(employee.role),
+      reportingManagerId: employee.reporting_manager_id,
+      reportingManagerName: employee.reporting_manager_name,
     }
     setSelectedEmployee(employeeDetail)
     setIsDrawerOpen(true)
@@ -265,8 +283,20 @@ export default function EmployeeDirectory() {
             <span className="text-sm font-medium">Back to Overview</span>
           </button>
 
-          <h1 className="text-3xl font-semibold text-slate-900 mb-2">Employee Directory</h1>
-          <p className="text-slate-500">View and manage all employee and contractor profiles.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold text-slate-900 mb-2">Employee Directory</h1>
+              <p className="text-slate-500">View and manage all employee and contractor profiles.</p>
+            </div>
+            <button
+              onClick={() => refetchEmployees()}
+              disabled={isRefetching}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
+              {isRefetching ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {/* Filters Bar */}
@@ -287,65 +317,66 @@ export default function EmployeeDirectory() {
             {/* Dropdown Filters */}
             <div className="flex flex-wrap gap-4 items-center">
               {/* Contract Type */}
-              <div className="relative min-w-[180px]">
-                <select
-                  value={contractTypeFilter}
-                  onChange={(e) => setContractTypeFilter(e.target.value)}
-                  className="w-full appearance-none px-4 py-3 pr-10 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer"
-                >
-                  <option value="all">Contract Type</option>
-                  <option value="Internal Project">Internal Project</option>
-                  <option value="Client Facing Project">Client Facing Project</option>
-                  <option value="Operational">Operational</option>
-                  <option value="Intern">Intern</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Combobox
+                placeholder="Contract Type"
+                value={contractTypeFilter}
+                onChange={setContractTypeFilter}
+                options={[
+                  { value: 'all', label: 'All Contract Types' },
+                  { value: 'Internal Project', label: 'Internal Project' },
+                  { value: 'Client Facing Project', label: 'Client Facing Project' },
+                  { value: 'Operational', label: 'Operational' },
+                  { value: 'Intern', label: 'Intern' },
+                ]}
+                className="min-w-[180px]"
+                clearable={false}
+              />
 
               {/* Reporting Manager */}
-              <div className="relative min-w-[180px]">
-                <select
-                  value={managerFilter}
-                  onChange={(e) => setManagerFilter(e.target.value)}
-                  className="w-full appearance-none px-4 py-3 pr-10 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer"
-                >
-                  <option value="all">Reporting Manager</option>
-                  {managers.map((manager) => (
-                    <option key={manager.id} value={manager.id}>
-                      {manager.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Combobox
+                placeholder="Reporting Manager"
+                value={managerFilter}
+                onChange={setManagerFilter}
+                options={[
+                  { value: 'all', label: 'All Managers' },
+                  ...managers.map((manager) => ({
+                    value: manager.id,
+                    label: manager.name,
+                    sublabel: manager.email,
+                  })),
+                ]}
+                className="min-w-[180px]"
+                clearable={false}
+                emptyMessage="No managers found"
+              />
 
               {/* Rate Type */}
-              <div className="relative min-w-[150px]">
-                <select
-                  value={rateTypeFilter}
-                  onChange={(e) => setRateTypeFilter(e.target.value)}
-                  className="w-full appearance-none px-4 py-3 pr-10 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer"
-                >
-                  <option value="all">Rate Type</option>
-                  <option value="hourly">Hourly</option>
-                  <option value="fixed">Fixed</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Combobox
+                placeholder="Rate Type"
+                value={rateTypeFilter}
+                onChange={setRateTypeFilter}
+                options={[
+                  { value: 'all', label: 'All Rate Types' },
+                  { value: 'hourly', label: 'Hourly' },
+                  { value: 'fixed', label: 'Fixed' },
+                ]}
+                className="min-w-[150px]"
+                clearable={false}
+              />
 
               {/* Employee Status */}
-              <div className="relative min-w-[160px]">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full appearance-none px-4 py-3 pr-10 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer"
-                >
-                  <option value="all">Employee Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Combobox
+                placeholder="Employee Status"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: 'all', label: 'All Statuses' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' },
+                ]}
+                className="min-w-[160px]"
+                clearable={false}
+              />
 
               {/* Reset Filters */}
               <button
@@ -394,6 +425,9 @@ export default function EmployeeDirectory() {
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                       Rate
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      Fixed Income
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                       Overtime Rate
@@ -452,21 +486,25 @@ export default function EmployeeDirectory() {
 
                       {/* Rate */}
                       <td className="px-6 py-4">
-                        <div>
-                          <span className="text-sm font-medium text-slate-900">
-                            {employee.rate_type === 'hourly'
-                              ? `$${employee.hourly_rate || 0}/hr`
-                              : `$${(employee.monthly_rate || 0).toLocaleString()}/mo`}
-                          </span>
-                          <p className="text-xs text-slate-400">
-                            {employee.rate_type === 'hourly' ? 'Hourly' : 'Fixed'}
-                          </p>
-                        </div>
+                        <span className={`text-sm font-medium ${employee.rate_type === 'hourly' ? 'text-slate-900' : 'text-slate-400'}`}>
+                          {employee.rate_type === 'hourly'
+                            ? `$${employee.hourly_rate || 0}/hr`
+                            : '—'}
+                        </span>
+                      </td>
+
+                      {/* Fixed Income */}
+                      <td className="px-6 py-4">
+                        <span className={`text-sm font-medium ${employee.rate_type === 'fixed' ? 'text-slate-900' : 'text-slate-400'}`}>
+                          {employee.rate_type === 'fixed'
+                            ? `$${(employee.monthly_rate || 0).toLocaleString()}/mo`
+                            : '—'}
+                        </span>
                       </td>
 
                       {/* Overtime Rate */}
                       <td className="px-6 py-4">
-                        <span className={`text-sm ${employee.rate_type === 'hourly' && employee.overtime_rate ? 'text-slate-900' : 'text-slate-400'}`}>
+                        <span className={`text-sm ${employee.rate_type === 'hourly' && employee.overtime_rate ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
                           {employee.rate_type === 'hourly' && employee.overtime_rate
                             ? `$${employee.overtime_rate}/hr`
                             : '—'}
@@ -559,19 +597,10 @@ export default function EmployeeDirectory() {
           setIsDrawerOpen(false)
           setSelectedEmployee(null)
         }}
-        onManagerUpdate={(employeeId, managerId, managerName) => {
-          // Update the Employee Directory table immediately when manager changes
-          setEmployees((prev) =>
-            prev.map((emp) =>
-              emp.id === employeeId
-                ? {
-                    ...emp,
-                    reporting_manager_id: managerId,
-                    reporting_manager_name: managerName,
-                  }
-                : emp
-            )
-          )
+        onManagerUpdate={async (employeeId, managerId, managerName) => {
+          // With TanStack Query, the list will auto-refresh via realtime subscription
+          // or we can manually trigger a refetch
+          await refetchEmployees()
         }}
       />
     </div>

@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import {
   Search,
-  ChevronDown,
   X,
   User,
   DollarSign,
@@ -22,8 +21,10 @@ import Swal from 'sweetalert2'
 import { EmployeeDetailDrawer, EmployeeDetail } from '@/components/admin/employee-drawer'
 import { RequestClarificationDialog } from '@/components/admin/request-clarification-dialog'
 import { RejectSubmissionDialog } from '@/components/admin/reject-submission-dialog'
+import { AdminCalendarControl } from '@/components/admin/calendar-controls'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { FilterPanel } from '@/components/common/FilterPanel'
+import { Combobox } from '@/components/ui/combobox'
 import type { SubmissionStatus } from '@/types/domain'
 import { 
   adminCanProcessPayment, 
@@ -129,6 +130,9 @@ export default function AdminDashboard() {
   // Employee Detail Drawer
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeDetail | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  
+  // Calendar Controls Drawer
+  const [isCalendarControlOpen, setIsCalendarControlOpen] = useState(false)
 
   // Dialog states for admin actions
   const [clarificationOpen, setClarificationOpen] = useState(false)
@@ -164,12 +168,45 @@ export default function AdminDashboard() {
   useEffect(() => {
     // Check if user is authenticated and is an admin
     const userRole = localStorage.getItem('userRole')
-    if (!userRole || userRole !== 'admin') {
-      router.push('/login')
+    // Support both uppercase and lowercase role checks for backwards compatibility
+    const isAdmin = userRole === 'ADMIN' || userRole === 'admin'
+    
+    if (!userRole || !isAdmin) {
+      // Show unauthorized message and redirect to appropriate dashboard
+      if (userRole) {
+        showUnauthorizedToast()
+        // Redirect to correct dashboard based on role
+        const dashboardPaths: Record<string, string> = {
+          'MANAGER': '/manager/dashboard',
+          'manager': '/manager/dashboard',
+          'EMPLOYEE': '/',
+          'employee': '/',
+        }
+        router.push(dashboardPaths[userRole] || '/sign-in')
+      } else {
+        router.push('/sign-in')
+      }
       return
     }
     loadInitialData()
   }, [router])
+  
+  const showUnauthorizedToast = () => {
+    if (typeof window !== 'undefined') {
+      const toastDiv = document.createElement('div')
+      toastDiv.className = 'fixed top-4 right-4 z-[100] bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg shadow-lg'
+      toastDiv.innerHTML = `
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <span>You don't have access to that area.</span>
+        </div>
+      `
+      document.body.appendChild(toastDiv)
+      setTimeout(() => toastDiv.remove(), 4000)
+    }
+  }
 
   const loadInitialData = async () => {
     try {
@@ -329,7 +366,9 @@ export default function AdminDashboard() {
     localStorage.removeItem('userRole')
     localStorage.removeItem('managerId')
     localStorage.removeItem('employeeId')
-    router.push('/login')
+    localStorage.removeItem('employeeName')
+    localStorage.removeItem('employeeEmail')
+    router.push('/sign-in')
   }
 
   const handleRowClick = (submission: Submission) => {
@@ -342,6 +381,16 @@ export default function AdminDashboard() {
         .join('')
         .toUpperCase()
 
+      // Normalize role from database
+      const normalizeRole = (role: string | null | undefined): 'ADMIN' | 'MANAGER' | 'EMPLOYEE' => {
+        if (!role) return 'EMPLOYEE'
+        const upperRole = role.toUpperCase()
+        if (upperRole === 'ADMIN' || upperRole === 'MANAGER' || upperRole === 'EMPLOYEE') {
+          return upperRole as 'ADMIN' | 'MANAGER' | 'EMPLOYEE'
+        }
+        return 'EMPLOYEE'
+      }
+
       const employeeDetail: EmployeeDetail = {
         id: employee.id,
         name: employee.name,
@@ -352,6 +401,10 @@ export default function AdminDashboard() {
                         employee.role === 'manager' ? 'Full-time' : 'Freelancer') as EmployeeDetail['contractorType'],
         status: 'Active',
         hourlyRate: employee.hourly_rate || 50,
+        // Add role for access control
+        role: normalizeRole(employee.role),
+        reportingManagerId: null,
+        reportingManagerName: null,
       }
       setSelectedEmployee(employeeDetail)
       setIsDrawerOpen(true)
@@ -549,6 +602,7 @@ export default function AdminDashboard() {
         onPrimaryAction={() => {
           router.push('/admin/employees')
         }}
+        onCalendarClick={() => setIsCalendarControlOpen(true)}
       />
 
       <main className="max-w-[1600px] mx-auto px-6 py-8">
@@ -650,88 +704,87 @@ export default function AdminDashboard() {
             {/* Dropdown Filters */}
             <div className="flex flex-wrap gap-3">
               {/* Role/Contractor Type */}
-              <div className="relative min-w-[160px]">
-                <select
-                  value={contractorTypeFilter}
-                  onChange={(e) => setContractorTypeFilter(e.target.value)}
-                  className="w-full appearance-none px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                >
-                  <option value="all">Role Type</option>
-                  <option value="employee">Employee</option>
-                  <option value="manager">Manager</option>
-                  <option value="contractor">Contractor</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Combobox
+                placeholder="Role Type"
+                value={contractorTypeFilter}
+                onChange={setContractorTypeFilter}
+                options={[
+                  { value: 'all', label: 'All Roles' },
+                  { value: 'employee', label: 'Employee' },
+                  { value: 'manager', label: 'Manager' },
+                  { value: 'contractor', label: 'Contractor' },
+                ]}
+                className="min-w-[160px]"
+                clearable={false}
+              />
 
               {/* Status */}
-              <div className="relative min-w-[160px]">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full appearance-none px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="SUBMITTED">Submitted</option>
-                  <option value="MANAGER_APPROVED">Manager Approved</option>
-                  <option value="MANAGER_REJECTED">Manager Rejected</option>
-                  <option value="NEEDS_CLARIFICATION">Needs Clarification</option>
-                  <option value="ADMIN_PAID">Paid</option>
-                  <option value="ADMIN_REJECTED">Admin Rejected</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Combobox
+                placeholder="All Statuses"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: 'all', label: 'All Statuses' },
+                  { value: 'SUBMITTED', label: 'Submitted' },
+                  { value: 'MANAGER_APPROVED', label: 'Manager Approved' },
+                  { value: 'MANAGER_REJECTED', label: 'Manager Rejected' },
+                  { value: 'NEEDS_CLARIFICATION', label: 'Needs Clarification' },
+                  { value: 'ADMIN_PAID', label: 'Paid' },
+                  { value: 'ADMIN_REJECTED', label: 'Admin Rejected' },
+                ]}
+                className="min-w-[160px]"
+                clearable={false}
+              />
 
               {/* Project */}
-              <div className="relative min-w-[160px]">
-                <select
-                  value={projectFilter}
-                  onChange={(e) => setProjectFilter(e.target.value)}
-                  className="w-full appearance-none px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                >
-                  <option value="all">Project</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Combobox
+                placeholder="Project"
+                value={projectFilter}
+                onChange={setProjectFilter}
+                options={[
+                  { value: 'all', label: 'All Projects' },
+                  ...projects.map((project) => ({
+                    value: project.id,
+                    label: project.name,
+                  })),
+                ]}
+                className="min-w-[160px]"
+                clearable={false}
+                emptyMessage="No projects found"
+              />
 
               {/* Manager */}
-              <div className="relative min-w-[160px]">
-                <select
-                  value={managerFilter}
-                  onChange={(e) => setManagerFilter(e.target.value)}
-                  className="w-full appearance-none px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
-                >
-                  <option value="all">Manager</option>
-                  {managers.map((manager) => (
-                    <option key={manager.id} value={manager.id}>
-                      {manager.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Combobox
+                placeholder="Manager"
+                value={managerFilter}
+                onChange={setManagerFilter}
+                options={[
+                  { value: 'all', label: 'All Managers' },
+                  ...managers.map((manager) => ({
+                    value: manager.id,
+                    label: manager.name,
+                  })),
+                ]}
+                className="min-w-[160px]"
+                clearable={false}
+                emptyMessage="No managers found"
+              />
 
               {/* Month */}
-              <div className="relative min-w-[180px]">
-                <select
-                  value={monthFilter}
-                  onChange={(e) => setMonthFilter(e.target.value)}
-                  className="w-full appearance-none px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer"
-                >
-                  <option value="all">Month</option>
-                  {getMonthOptions().map((month) => (
-                    <option key={month.value} value={month.value}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <Combobox
+                placeholder="Month"
+                value={monthFilter}
+                onChange={setMonthFilter}
+                options={[
+                  { value: 'all', label: 'All Months' },
+                  ...getMonthOptions().map((month) => ({
+                    value: month.value,
+                    label: month.label,
+                  })),
+                ]}
+                className="min-w-[180px]"
+                clearable={false}
+              />
 
               {/* Reset Filters */}
               <button
@@ -1219,6 +1272,16 @@ export default function AdminDashboard() {
           overtimeHours: selectedActionRow.overtime_hours || 0,
         } : null}
         submissionLabel={selectedActionRow ? formatDate(selectedActionRow.submission_date) + ' submission' : undefined}
+      />
+
+      {/* Calendar Controls Drawer */}
+      <AdminCalendarControl
+        isOpen={isCalendarControlOpen}
+        onClose={() => setIsCalendarControlOpen(false)}
+        onSave={() => {
+          // Reload data if needed after holidays are set
+          loadSubmissions()
+        }}
       />
     </div>
   )
