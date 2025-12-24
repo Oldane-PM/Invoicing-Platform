@@ -66,11 +66,16 @@ export async function GET(
     }
 
     // Transform the data to match the frontend interface
+    // Handle both array and single object cases for employees join
+    const employee = Array.isArray(submission.employees) 
+      ? submission.employees[0] 
+      : submission.employees
+    
     const transformedSubmission = {
       id: submission.id,
       employee_id: submission.employee_id,
-      employee_name: submission.employees.name,
-      employee_email: submission.employees.email,
+      employee_name: employee?.name || 'Unknown',
+      employee_email: employee?.email || '',
       date: submission.date,
       hours_submitted: submission.hours_submitted,
       overtime_hours: submission.overtime_hours,
@@ -80,7 +85,7 @@ export async function GET(
       created_at: submission.created_at,
       updated_at: submission.updated_at,
       submission_date: submission.submission_date,
-      hourly_rate: submission.employees.hourly_rate,
+      hourly_rate: employee?.hourly_rate || 0,
     }
 
     return NextResponse.json({

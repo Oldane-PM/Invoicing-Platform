@@ -97,11 +97,25 @@ export function adminCanRequestClarification(status: SubmissionStatus | string):
 // Status Display Helpers
 // ============================================================================
 
+import { 
+  Clock, 
+  XCircle, 
+  CheckCircle, 
+  DollarSign, 
+  AlertCircle,
+  HelpCircle,
+  type LucideIcon 
+} from 'lucide-react'
+
 export interface StatusDisplay {
   label: string
   color: 'gray' | 'yellow' | 'green' | 'red' | 'blue' | 'purple' | 'amber'
   bgClass: string
   textClass: string
+  textColor: string
+  iconBg: string
+  iconColor: string
+  Icon: LucideIcon
 }
 
 export function getStatusDisplay(status: SubmissionStatus | string): StatusDisplay {
@@ -111,50 +125,78 @@ export function getStatusDisplay(status: SubmissionStatus | string): StatusDispl
       return {
         label: 'Pending Review',
         color: 'yellow',
-        bgClass: 'bg-yellow-100',
+        bgClass: 'bg-yellow-50',
         textClass: 'text-yellow-800',
+        textColor: 'text-yellow-700',
+        iconBg: 'bg-yellow-100',
+        iconColor: 'text-yellow-600',
+        Icon: Clock,
       }
     case 'MANAGER_REJECTED':
       return {
         label: 'Rejected by Manager',
         color: 'red',
-        bgClass: 'bg-red-100',
+        bgClass: 'bg-red-50',
         textClass: 'text-red-800',
+        textColor: 'text-red-700',
+        iconBg: 'bg-red-100',
+        iconColor: 'text-red-600',
+        Icon: XCircle,
       }
     case 'MANAGER_APPROVED':
       return {
         label: 'Approved (Pending Payment)',
         color: 'blue',
-        bgClass: 'bg-blue-100',
+        bgClass: 'bg-blue-50',
         textClass: 'text-blue-800',
+        textColor: 'text-blue-700',
+        iconBg: 'bg-blue-100',
+        iconColor: 'text-blue-600',
+        Icon: CheckCircle,
       }
     case 'ADMIN_PAID':
       return {
         label: 'Paid',
         color: 'green',
-        bgClass: 'bg-green-100',
+        bgClass: 'bg-green-50',
         textClass: 'text-green-800',
+        textColor: 'text-green-700',
+        iconBg: 'bg-green-100',
+        iconColor: 'text-green-600',
+        Icon: DollarSign,
       }
     case 'ADMIN_REJECTED':
       return {
         label: 'Rejected by Admin',
         color: 'red',
-        bgClass: 'bg-red-100',
+        bgClass: 'bg-red-50',
         textClass: 'text-red-800',
+        textColor: 'text-red-700',
+        iconBg: 'bg-red-100',
+        iconColor: 'text-red-600',
+        Icon: XCircle,
       }
     case 'NEEDS_CLARIFICATION':
       return {
         label: 'Clarification Required',
         color: 'amber',
-        bgClass: 'bg-amber-100',
+        bgClass: 'bg-amber-50',
         textClass: 'text-amber-800',
+        textColor: 'text-amber-700',
+        iconBg: 'bg-amber-100',
+        iconColor: 'text-amber-600',
+        Icon: AlertCircle,
       }
     default:
       return {
         label: 'Unknown',
         color: 'gray',
-        bgClass: 'bg-gray-100',
+        bgClass: 'bg-gray-50',
         textClass: 'text-gray-800',
+        textColor: 'text-gray-700',
+        iconBg: 'bg-gray-100',
+        iconColor: 'text-gray-600',
+        Icon: HelpCircle,
       }
   }
 }

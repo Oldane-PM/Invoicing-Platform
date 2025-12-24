@@ -177,7 +177,10 @@ export async function POST(request: NextRequest) {
     // Step 6: Return PDF response
     console.log(`[${requestId}] Returning PDF response`)
     
-    const response = new NextResponse(pdfBuffer, {
+    // Convert Buffer to Uint8Array for NextResponse compatibility
+    const pdfBytes = new Uint8Array(pdfBuffer)
+    
+    const response = new NextResponse(pdfBytes, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

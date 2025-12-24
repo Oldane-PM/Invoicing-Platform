@@ -92,7 +92,14 @@ export async function getEmployeeById(employeeId: string): Promise<Employee | nu
 // ============================================
 // GET MANAGERS LIST
 // ============================================
-export async function listManagers(): Promise<Employee[]> {
+export interface ManagerOption {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
+export async function listManagers(): Promise<ManagerOption[]> {
   const { data, error } = await supabase
     .from('employees')
     .select('id, name, email, role')
