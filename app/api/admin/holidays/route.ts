@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { v4 as uuidv4 } from 'uuid'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+// Force dynamic to prevent static generation error
+export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/admin/holidays
@@ -13,6 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey)
  */
 export async function GET(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin()
     const { data: holidays, error } = await supabase
       .from('holidays')
       .select('*')
@@ -46,6 +45,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin()
     const body = await request.json()
     const {
       name,
@@ -161,6 +161,7 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin()
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 

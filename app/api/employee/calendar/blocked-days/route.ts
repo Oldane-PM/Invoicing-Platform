@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 // Force dynamic to prevent static generation error
 export const dynamic = 'force-dynamic'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 interface BlockedDay {
   date: string // Always YYYY-MM-DD format
@@ -87,6 +82,7 @@ export async function GET(request: NextRequest) {
   const requestId = Math.random().toString(36).substring(7) // For logging
   
   try {
+    const supabase = getSupabaseAdmin()
     const { searchParams } = new URL(request.url)
     
     const employeeId = searchParams.get('employeeId')

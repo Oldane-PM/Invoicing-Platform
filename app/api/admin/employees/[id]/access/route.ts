@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 // Valid roles
 const VALID_ROLES = ['ADMIN', 'MANAGER', 'EMPLOYEE'] as const
@@ -14,6 +9,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const supabase = getSupabaseAdmin()
     const employeeId = params.id
     const body = await request.json()
     const { role, reporting_manager_id } = body

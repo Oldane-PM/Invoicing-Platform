@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 import { v4 as uuidv4 } from 'uuid'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+// Force dynamic to prevent static generation error
+export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/auth/signup
@@ -16,6 +14,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey)
  */
 export async function POST(request: NextRequest) {
   try {
+    const supabase = getSupabaseAdmin()
     const body = await request.json()
     const { name, email, password } = body
 
