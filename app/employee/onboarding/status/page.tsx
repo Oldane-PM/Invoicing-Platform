@@ -23,7 +23,6 @@ export default function OnboardingStatusPage() {
     setEmployeeId(storedEmployeeId)
     loadStatus(storedEmployeeId)
 
-    // Poll for updates every 30 seconds
     const interval = setInterval(() => {
       loadStatus(storedEmployeeId)
     }, 30000)
@@ -37,7 +36,6 @@ export default function OnboardingStatusPage() {
       if (data) {
         setStatus(data)
         
-        // If onboarding complete, redirect to employee dashboard
         if (data.onboardingStatus === 'COMPLETE') {
           router.push('/employee')
         }
@@ -56,7 +54,6 @@ export default function OnboardingStatusPage() {
     try {
       const result = await resubmitOnboarding(employeeId)
       if (result.success) {
-        // Reload status
         await loadStatus(employeeId)
       }
     } catch (error) {
@@ -88,7 +85,6 @@ export default function OnboardingStatusPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Success Message */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
           <div className="flex justify-center mb-6">
             <div className="w-24 h-24 rounded-full bg-amber-100 flex items-center justify-center">
@@ -103,7 +99,7 @@ export default function OnboardingStatusPage() {
           <p className="text-gray-600 mb-6">
             {isRejected
               ? 'Your onboarding submission was rejected. Please review the feedback below and resubmit.'
-              : 'An administrator is reviewing your details. You'll be notified once your account is approved.'}
+              : 'An administrator is reviewing your details. You will be notified once your account is approved.'}
           </p>
 
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 border border-blue-200 rounded-full text-blue-800 font-medium">
@@ -112,7 +108,6 @@ export default function OnboardingStatusPage() {
           </div>
         </div>
 
-        {/* Rejection Notice with Edit Options */}
         {isRejected && (
           <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
             <div className="flex items-start gap-4 mb-4">
@@ -154,14 +149,12 @@ export default function OnboardingStatusPage() {
           </div>
         )}
 
-        {/* Onboarding Progress */}
         <OnboardingProgress
           progress={status.progress}
           approvalStatus={status.adminApprovalStatus}
           rejectionReason={status.adminRejectionReason}
         />
 
-        {/* Timesheet Lock Panel */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0">
@@ -174,7 +167,7 @@ export default function OnboardingStatusPage() {
                 Timesheet Submissions Locked
               </h3>
               <p className="text-gray-600 mb-4">
-                You'll be able to submit hours once your onboarding is complete. This ensures
+                You will be able to submit hours once your onboarding is complete. This ensures
                 all your information is properly verified before processing payroll.
               </p>
               <button
@@ -187,7 +180,6 @@ export default function OnboardingStatusPage() {
           </div>
         </div>
 
-        {/* What Happens Next */}
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
           <h3 className="text-lg font-semibold text-amber-900 mb-4 flex items-center gap-2">
             <Info className="w-5 h-5" />
@@ -204,18 +196,17 @@ export default function OnboardingStatusPage() {
             </li>
             <li className="flex items-start gap-3">
               <span className="text-amber-600 font-bold">•</span>
-              <span>You'll be assigned to a reporting manager</span>
+              <span>You will be assigned to a reporting manager</span>
             </li>
             <li className="flex items-start gap-3">
               <span className="text-amber-600 font-bold">•</span>
               <span>
-                Once complete, you'll receive a notification and can start submitting hours
+                Once complete, you will receive a notification and can start submitting hours
               </span>
             </li>
           </ul>
         </div>
 
-        {/* View Dashboard Button */}
         <div className="text-center">
           <button
             onClick={() => router.push('/employee')}
