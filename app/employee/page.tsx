@@ -35,7 +35,7 @@ interface Employee {
   name: string
   lastLogin: string
   hourlyRate: number | null
-  onboarding_status?: 'not_started' | 'in_progress' | 'completed' | null
+  onboarding_status?: 'INCOMPLETE' | 'COMPLETE' | null
 }
 
 export default function Dashboard() {
@@ -245,10 +245,10 @@ export default function Dashboard() {
         onboarding_status: onboardingStatus,
       })
 
-      // Only redirect to onboarding if status is null (never started) or 'in_progress'
-      // Allow 'completed' and 'not_started' (skipped) to access dashboard
-      if (onboardingStatus === null || onboardingStatus === 'in_progress') {
-        router.push('/onboarding')
+      // Redirect to onboarding if not complete
+      // This handles new sign-ups and incomplete onboarding
+      if (!onboardingStatus || onboardingStatus === 'INCOMPLETE') {
+        router.push('/employee/onboarding')
         return
       }
     } catch (error) {

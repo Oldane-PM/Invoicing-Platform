@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
         email: email.toLowerCase().trim(),
         role: 'employee', // Default role (lowercase) - admin will assign proper role later
         status: 'ACTIVE', // Use ACTIVE status (constraint doesn't allow PENDING)
+        onboarding_status: 'INCOMPLETE', // New employees must complete onboarding
+        admin_approval_status: 'NOT_SUBMITTED', // Initial onboarding status
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
