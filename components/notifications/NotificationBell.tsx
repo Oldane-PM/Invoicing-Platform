@@ -44,14 +44,14 @@ export function NotificationBell() {
     if (!notificationsData) return []
     return notificationsData.map((n: any) => ({
       id: n.id,
-      user_id: n.recipient_id || userId || '',
-      role: (userRole?.toUpperCase() || 'EMPLOYEE') as NotificationRole,
+      user_id: n.user_id || userId || '',
+      role: (n.role || userRole?.toUpperCase() || 'EMPLOYEE') as NotificationRole,
       type: n.type,
       title: n.title,
       message: n.message,
-      entity_type: n.metadata?.entity_type || null,
-      entity_id: n.metadata?.entity_id || null,
-      is_read: n.read ?? false,
+      entity_type: n.entity_type || null,
+      entity_id: n.entity_id || null,
+      is_read: n.is_read ?? false,
       metadata: n.metadata || null,
       created_at: n.created_at,
     }))
