@@ -35,7 +35,6 @@ export default function OnboardingStatusPage() {
       const data = await getOnboardingStatus(empId)
       if (data) {
         setStatus(data)
-        
         if (data.onboardingStatus === 'COMPLETE') {
           router.push('/employee')
         }
@@ -49,7 +48,6 @@ export default function OnboardingStatusPage() {
 
   const handleResubmit = async () => {
     if (!employeeId) return
-    
     setIsResubmitting(true)
     try {
       const result = await resubmitOnboarding(employeeId)
@@ -74,13 +72,12 @@ export default function OnboardingStatusPage() {
   if (isLoading || !status) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" />
       </div>
     )
   }
 
   const isRejected = status.adminApprovalStatus === 'REJECTED'
-  const isWaiting = status.adminApprovalStatus === 'WAITING'
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -108,9 +105,9 @@ export default function OnboardingStatusPage() {
           </div>
         </div>
 
-        {isRejected && (
+        {isRejected && status.adminRejectionReason && (
           <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
-            <div className="flex items-start gap-4 mb-4">
+            <div className="flex items-start gap-4">
               <div className="flex-shrink-0">
                 <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
                   <Info className="w-6 h-6 text-red-600" />
@@ -120,9 +117,7 @@ export default function OnboardingStatusPage() {
                 <h3 className="text-lg font-semibold text-red-900 mb-2">
                   Submission Rejected by Administrator
                 </h3>
-                <p className="text-red-800 mb-4">
-                  {status.adminRejectionReason}
-                </p>
+                <p className="text-red-800 mb-4">{status.adminRejectionReason}</p>
                 <div className="flex flex-wrap gap-3">
                   <button
                     onClick={handleEditPersonalInfo}
@@ -167,8 +162,7 @@ export default function OnboardingStatusPage() {
                 Timesheet Submissions Locked
               </h3>
               <p className="text-gray-600 mb-4">
-                You will be able to submit hours once your onboarding is complete. This ensures
-                all your information is properly verified before processing payroll.
+                You will be able to submit hours once your onboarding is complete.
               </p>
               <button
                 disabled
@@ -200,9 +194,7 @@ export default function OnboardingStatusPage() {
             </li>
             <li className="flex items-start gap-3">
               <span className="text-amber-600 font-bold">•</span>
-              <span>
-                Once complete, you will receive a notification and can start submitting hours
-              </span>
+              <span>Once complete, you will receive a notification and can start submitting hours</span>
             </li>
           </ul>
         </div>
@@ -219,4 +211,3 @@ export default function OnboardingStatusPage() {
     </div>
   )
 }
-
