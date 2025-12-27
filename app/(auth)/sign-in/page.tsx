@@ -110,12 +110,12 @@ export default function SignIn() {
       
       // Redirect based on role
       const redirectPaths: Record<string, string> = {
-        EMPLOYEE: '/',
+        EMPLOYEE: '/employee',
         MANAGER: '/manager/dashboard',
         ADMIN: '/admin/dashboard'
       }
       
-      router.push(redirectPaths[role] || '/')
+      router.push(redirectPaths[role] || '/sign-in')
     } catch (err) {
       console.error('Login error:', err)
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
@@ -200,12 +200,12 @@ export default function SignIn() {
       
       // Redirect based on role
       const redirectPaths: Record<string, string> = {
-        EMPLOYEE: '/',
+        EMPLOYEE: '/employee',
         MANAGER: '/manager/dashboard',
         ADMIN: '/admin/dashboard'
       }
       
-      router.push(redirectPaths[role] || '/')
+      router.push(redirectPaths[role] || '/sign-in')
     } catch (err) {
       console.error('Google auth error:', err)
       setError(err instanceof Error ? err.message : 'Authentication failed. Please try again.')
