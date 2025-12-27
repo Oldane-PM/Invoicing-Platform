@@ -8,7 +8,7 @@
  * - Progress tracking
  */
 
-import { createClientComponentClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase/client'
 
 // =====================================================
 // Types
@@ -143,8 +143,6 @@ function transformToOnboardingData(employee: any, manager: any = null): Onboardi
  * Get onboarding status for an employee
  */
 export async function getOnboardingStatus(employeeId: string): Promise<OnboardingData | null> {
-  const supabase = createClientComponentClient()
-  
   const { data: employee, error } = await supabase
     .from('employees')
     .select(`
@@ -169,7 +167,6 @@ export async function savePersonalInfo(
   employeeId: string,
   payload: PersonalInfoPayload
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientComponentClient()
   
   try {
     const { error } = await supabase
@@ -200,7 +197,6 @@ export async function saveBankingInfo(
   employeeId: string,
   payload: BankingInfoPayload
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientComponentClient()
   
   try {
     const { error } = await supabase
@@ -230,7 +226,6 @@ export async function saveBankingInfo(
 export async function submitOnboarding(
   employeeId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientComponentClient()
   
   try {
     // First, verify both personal and banking info are completed
@@ -274,7 +269,6 @@ export async function submitOnboarding(
 export async function resubmitOnboarding(
   employeeId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientComponentClient()
   
   try {
     const { error } = await supabase
@@ -308,7 +302,6 @@ export async function resubmitOnboarding(
  * Get onboarding queue for admin review
  */
 export async function getOnboardingQueue(): Promise<OnboardingData[]> {
-  const supabase = createClientComponentClient()
   
   const { data: employees, error } = await supabase
     .from('employees')
@@ -335,7 +328,6 @@ export async function adminApproveOnboarding(
   employeeId: string,
   adminId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientComponentClient()
   
   try {
     const { error } = await supabase
@@ -369,7 +361,6 @@ export async function adminRejectOnboarding(
   employeeId: string,
   reason: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientComponentClient()
   
   if (!reason?.trim()) {
     return {
@@ -414,7 +405,6 @@ export async function adminCompleteContract(
     contract_start_date?: string
   }
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientComponentClient()
   
   try {
     const updateData: any = {
@@ -452,7 +442,6 @@ export async function adminAssignManager(
   employeeId: string,
   managerId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClientComponentClient()
   
   try {
     const { error } = await supabase
@@ -480,7 +469,6 @@ export async function adminAssignManager(
  * Check if employee can submit timesheets (onboarding complete)
  */
 export async function canSubmitTimesheets(employeeId: string): Promise<boolean> {
-  const supabase = createClientComponentClient()
   
   const { data: employee } = await supabase
     .from('employees')
