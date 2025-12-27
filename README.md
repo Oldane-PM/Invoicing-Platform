@@ -32,20 +32,45 @@ A modern employee time submission and invoicing platform built with Next.js, Typ
 
 - Node.js 18+ installed
 - npm or yarn package manager
+- A Supabase account and project
+- Google OAuth credentials (for authentication)
 
 ### Installation
 
-1. Install dependencies:
+1. Clone the repository and install dependencies:
 ```bash
 npm install
 ```
 
-2. Run the development server:
-```bash
-npm run dev
-```
+2. **Set up environment variables:**
+   
+   Copy the example environment file:
+   ```bash
+   cp .env.example .env.local
+   ```
+   
+   Then update `.env.local` with your actual credentials:
+   - **Supabase keys**: Get from [Supabase Dashboard](https://supabase.com/dashboard) → Settings → API
+   - **Better Auth secret**: Generate with `openssl rand -base64 32`
+   - **Google OAuth**: Set up in [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   
+   📖 **See [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) for detailed setup instructions and security guidelines.**
 
-3. Open [http://localhost:3000](http://localhost:3000) in your browser
+3. **Set up the database:**
+   
+   Run the Supabase migrations:
+   ```bash
+   npm run migrate
+   ```
+   
+   Or manually run the SQL files in `/supabase/migrations/` in your Supabase SQL Editor.
+
+4. **Run the development server:**
+   ```bash
+   npm run dev
+   ```
+
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Usage
 
@@ -71,43 +96,123 @@ npm run dev
 
 ## Data Storage
 
-All data is stored in browser localStorage, including:
-- Employee submissions
-- Employee profile information
-- Last login timestamp
+The application uses Supabase (PostgreSQL) for data persistence:
+- Employee profiles and authentication
+- Time submissions and approvals
+- Invoices and payment records
+- Notifications and activity logs
+- Holiday calendar
+
+All database access is protected by Row Level Security (RLS) policies.
+
+## Security & Environment Variables
+
+🔐 **Important:** Never commit `.env.local` to version control. This file contains sensitive credentials.
+
+For detailed information about:
+- Environment variable setup
+- Security classification of keys
+- How to obtain credentials
+- Key rotation procedures
+
+👉 **See [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md)**
+
+### Quick Security Reference:
+
+**🔴 NEVER SHARE PUBLICLY:**
+- `BETTER_AUTH_SECRET`
+- `GOOGLE_CLIENT_SECRET`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+**🟢 SAFE TO EXPOSE (by design):**
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_APP_URL`
 
 ## Technologies Used
 
+### Frontend
 - **Next.js 14**: React framework with App Router
 - **TypeScript**: Type-safe development
 - **Tailwind CSS**: Utility-first CSS framework
 - **Lucide React**: Icon library
+- **TanStack Query**: Data fetching and caching
 - **date-fns**: Date formatting utilities
-- **uuid**: Unique ID generation
+
+### Backend & Database
+- **Supabase**: PostgreSQL database with real-time subscriptions
+- **Better Auth**: Modern authentication library
+- **Row Level Security (RLS)**: Database-level authorization
+
+### Authentication
+- **Google OAuth 2.0**: Single sign-on
+- **Domain-restricted access**: Email domain verification
+- **JWT tokens**: Secure session management
 
 ## Project Structure
 
 ```
 Invoice_Platform/
-├── app/
-│   ├── page.tsx          # Main dashboard
-│   ├── profile/          # Employee profile page
-│   ├── layout.tsx        # Root layout
-│   └── globals.css       # Global styles
-├── package.json
-├── tsconfig.json
-└── tailwind.config.js
+├── app/                      # Next.js App Router pages
+│   ├── (auth)/              # Authentication pages
+│   ├── admin/               # Admin dashboard & management
+│   ├── manager/             # Manager dashboard & team views
+│   ├── api/                 # API routes
+│   └── profile/             # User profile pages
+├── components/              # React components
+│   ├── admin/               # Admin-specific components
+│   ├── employee/            # Employee-specific components
+│   ├── ui/                  # Reusable UI components
+│   └── notifications/       # Notification system
+├── lib/                     # Utility libraries
+│   ├── auth/                # Authentication utilities
+│   ├── supabase/            # Supabase client & queries
+│   ├── data/                # Data fetching functions
+│   └── realtime/            # Real-time subscriptions
+├── hooks/                   # Custom React hooks
+├── types/                   # TypeScript type definitions
+├── supabase/               # Database migrations & SQL
+│   └── migrations/          # Version-controlled schema changes
+├── .env.example            # Environment variables template
+└── ENVIRONMENT_VARIABLES.md # Environment setup guide
 ```
+
+## Features Implemented
+
+✅ **Authentication**
+- Google OAuth sign-in
+- Domain-restricted access
+- Role-based authorization (Admin, Manager, Employee)
+
+✅ **Time Submission System**
+- Employee time submission
+- Manager approval workflow
+- Admin oversight and control
+
+✅ **Invoice Generation**
+- Automated PDF invoice creation
+- Invoice tracking and management
+
+✅ **Notifications**
+- Real-time notification system
+- Status updates and alerts
+
+✅ **Calendar Management**
+- Holiday tracking
+- Date-based submissions
+
+✅ **Team Management**
+- Manager-employee relationships
+- Team hierarchy
 
 ## Future Enhancements
 
-- Backend API integration
-- User authentication
-- PDF invoice generation
-- Email notifications
-- Admin approval workflow
-- Payment tracking
-- Export functionality
+- Email notifications for status changes
+- Bulk submission operations
+- Advanced reporting and analytics
+- Export functionality (CSV, Excel)
+- Mobile app
+- Integration with payment processors
 
 ## License
 
