@@ -32,6 +32,11 @@ interface Employee {
   reporting_manager_name: string | null
   status: string
   role: string
+  admin_approval_status: string | null
+  personal_info_completed_at: string | null
+  banking_info_completed_at: string | null
+  onboarding_submitted_at: string | null
+  onboarding_status: string | null
 }
 
 // Contract Type Badge Configuration
@@ -77,6 +82,11 @@ export default function EmployeeDirectory() {
       reporting_manager_name: null, // Will be looked up
       status: emp.status?.toLowerCase() || 'active',
       role: emp.role || 'employee',
+      admin_approval_status: emp.admin_approval_status || null,
+      personal_info_completed_at: emp.personal_info_completed_at || null,
+      banking_info_completed_at: emp.banking_info_completed_at || null,
+      onboarding_submitted_at: emp.onboarding_submitted_at || null,
+      onboarding_status: emp.onboarding_status || null,
     }))
   }, [employeesData])
   
@@ -103,6 +113,9 @@ export default function EmployeeDirectory() {
   // Detail Drawer
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeDetail | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  
+  // Onboarding approval state
+  const [approvingEmployeeId, setApprovingEmployeeId] = useState<string | null>(null)
   
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
@@ -204,6 +217,55 @@ export default function EmployeeDirectory() {
     }
     setSelectedEmployee(employeeDetail)
     setIsDrawerOpen(true)
+  }
+
+  const handleApproveOnboarding = async (employeeId: string, employeeName: string, event: React.MouseEvent) => {
+    event.stopPropagation() // Prevent row click
+    
+    const adminId = localStorage.getItem('employeeId')
+    if (!adminId) {
+      alert('Admin ID not found. Please log in again.')
+      return
+    }
+
+    setApprovingEmployeeId(employeeId)
+
+    try {
+      const response = await fetch(`/api/admin/employees/${employeeId}/approve-onboarding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ adminId }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to approve onboarding')
+      }
+
+      // Success toast
+      const toast = document.createElement('div')
+      toast.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-slide-in-right'
+      toast.textContent = `✓ ${employeeName}'s onboarding approved`
+      document.body.appendChild(toast)
+      setTimeout(() => toast.remove(), 3000)
+
+      // Refresh employee list
+      await refetchEmployees()
+    } catch (error) {
+      console.error('Error approving onboarding:', error)
+      
+      // Error toast
+      const toast = document.createElement('div')
+      toast.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-slide-in-right'
+      toast.textContent = `✗ ${error instanceof Error ? error.message : 'Failed to approve onboarding'}`
+      document.body.appendChild(toast)
+      setTimeout(() => toast.remove(), 4000)
+    } finally {
+      setApprovingEmployeeId(null)
+    }
   }
 
   // Pagination calculations
@@ -441,6 +503,9 @@ export default function EmployeeDirectory() {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                       Reporting Manager
                     </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -526,6 +591,42 @@ export default function EmployeeDirectory() {
                         <span className={`text-sm ${employee.reporting_manager_name ? 'text-slate-900' : 'text-slate-400'}`}>
                           {employee.reporting_manager_name || '—'}
                         </span>
+                      </td>
+
+                      {/* Actions - Onboarding Approval */}
+                      <td className="px-6 py-4">
+                        {employee.admin_approval_status === 'WAITING' && (
+                          <button
+                            onClick={(e) => handleApproveOnboarding(employee.id, employee.name, e)}
+                            disabled={approvingEmployeeId === employee.id}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {approvingEmployeeId === employee.id ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Approving...
+                              </>
+                            ) : (
+                              'Approve'
+                            )}
+                          </button>
+                        )}
+                        {employee.admin_approval_status === 'APPROVED' && (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Approved
+                          </span>
+                        )}
+                        {employee.admin_approval_status === 'REJECTED' && (
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Rejected
+                          </span>
+                        )}
+                        {employee.admin_approval_status === 'NOT_SUBMITTED' && (
+                          <span className="text-sm text-slate-400">Not submitted</span>
+                        )}
+                        {!employee.admin_approval_status && (
+                          <span className="text-sm text-slate-400">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}
