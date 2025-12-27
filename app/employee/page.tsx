@@ -26,6 +26,8 @@ import { employeeCanEdit, employeeCanDelete, getStatusDisplay, getEmployeeStatus
 import Swal from 'sweetalert2'
 import { AppHeader } from '@/components/layout/AppHeader'
 import { SubmissionEditDrawer } from '@/components/employee/SubmissionEditDrawer'
+import { canSubmitTimesheets } from '@/lib/data/onboarding'
+import { Lock } from 'lucide-react'
 
 type Submission = SubmissionFrontend
 
@@ -73,6 +75,10 @@ export default function Dashboard() {
   // Edit drawer state
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false)
+  
+  // Onboarding / timesheet lock state
+  const [canSubmitHours, setCanSubmitHours] = useState(true)
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true)
 
   const handleRowClick = (submission: Submission) => {
     setSelectedSubmission(submission)
@@ -192,12 +198,29 @@ export default function Dashboard() {
     if (employeeId) {
       loadEmployee()
       loadSubmissions()
+      checkOnboardingStatus()
     } else {
       // If no employee ID, stop loading states
       setLoadingEmployee(false)
       setLoadingSubmissions(false)
+      setCheckingOnboarding(false)
     }
   }, [employeeId])
+  
+  const checkOnboardingStatus = async () => {
+    if (!employeeId) return
+    
+    try {
+      const canSubmit = await canSubmitTimesheets(employeeId)
+      setCanSubmitHours(canSubmit)
+    } catch (error) {
+      console.error('Error checking onboarding status:', error)
+      // Default to allowing submission on error to avoid blocking users
+      setCanSubmitHours(true)
+    } finally {
+      setCheckingOnboarding(false)
+    }
+  }
 
   const loadEmployee = async () => {
     if (!employeeId) return
@@ -856,11 +879,39 @@ export default function Dashboard() {
         subtitle={loadingEmployee ? '' : employee.lastLogin}
         primaryActionLabel="Submit Hours"
         primaryActionIcon={<Clock className="w-4 h-4" />}
-        onPrimaryAction={() => setShowSubmitModal(true)}
+        onPrimaryAction={() => canSubmitHours && setShowSubmitModal(true)}
         onProfileClick={() => router.push('/profile')}
       />
 
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Onboarding Lock Panel */}
+        {!checkingOnboarding && !canSubmitHours && (
+          <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                  <Lock className="w-6 h-6 text-amber-600" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-amber-900 mb-2">
+                  Timesheet Submissions Locked
+                </h3>
+                <p className="text-amber-800 mb-4">
+                  You need to complete your onboarding before you can submit hours. This ensures
+                  all your information is properly verified before processing payroll.
+                </p>
+                <button
+                  onClick={() => router.push('/employee/onboarding/status')}
+                  className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium"
+                >
+                  View Onboarding Status →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Recent Submissions Table */}
         <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
           <h2 className="text-xl font-semibold text-slate-900 mb-4">Recent Submissions</h2>
