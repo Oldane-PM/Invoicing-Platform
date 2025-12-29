@@ -1,11 +1,15 @@
 /**
- * Onboarding Data Access Layer
+ * Onboarding Data Access Layer (Refactored)
  * 
- * Handles all employee onboarding operations including:
- * - Personal information submission
- * - Banking details submission
- * - Admin approval workflow
- * - Progress tracking
+ * Uses dedicated onboarding tables (onboarding_cases, onboarding_personal,
+ * onboarding_banking, onboarding_contract, onboarding_events) instead of
+ * embedding everything in the employees table.
+ * 
+ * Key changes:
+ * - Employees table is now "system of record" for active staff only
+ * - Onboarding workflow lives in separate tables
+ * - Full audit trail via onboarding_events
+ * - Improved security via RLS and table separation
  */
 
 import { supabase } from '@/lib/supabase/client'
@@ -14,8 +18,29 @@ import { supabase } from '@/lib/supabase/client'
 // Types
 // =====================================================
 
-export type OnboardingApprovalStatus = 'NOT_SUBMITTED' | 'WAITING' | 'APPROVED' | 'REJECTED'
-export type OnboardingStatus = 'INCOMPLETE' | 'COMPLETE'
+export type OnboardingState = 
+  | 'draft'
+  | 'submitted'
+  | 'personal_pending'
+  | 'banking_pending'
+  | 'admin_review'
+  | 'contract_pending'
+  | 'manager_pending'
+  | 'approved'
+  | 'rejected'
+  | 'closed'
+
+export type OnboardingEventType =
+  | 'case_created'
+  | 'submitted'
+  | 'personal_updated'
+  | 'banking_updated'
+  | 'contract_updated'
+  | 'manager_assigned'
+  | 'admin_approved'
+  | 'admin_rejected'
+  | 'case_closed'
+  | 'resubmitted'
 
 export interface OnboardingProgress {
   step1_submit_request: boolean
@@ -29,67 +54,116 @@ export interface OnboardingProgress {
 }
 
 export interface OnboardingData {
-  employeeId: string
-  employeeName: string
-  employeeEmail: string
+  caseId: string
+  userId: string
+  employeeId: string | null
   
-  // Step tracking timestamps
-  personalInfoCompletedAt: string | null
-  bankingInfoCompletedAt: string | null
-  onboardingSubmittedAt: string | null
-  adminApprovedAt: string | null
-  contractCompletedAt: string | null
-  managerAssignedAt: string | null
+  // State
+  currentState: OnboardingState
   
-  // Admin review
-  adminApprovalStatus: OnboardingApprovalStatus
-  adminRejectionReason: string | null
-  adminApprovedBy: string | null
+  // Step tracking
+  personalInfoCompleted: boolean
+  bankingInfoCompleted: boolean
+  contractCompleted: boolean
+  managerAssigned: boolean
   
-  // Manager assignment
-  reportingManagerId: string | null
-  managerName: string | null
-  
-  // Overall status
-  onboardingStatus: OnboardingStatus
-  progress: OnboardingProgress
-  
+  // Timestamps
+  submittedAt: string | null
+  approvedAt: string | null
+  rejectedAt: string | null
   createdAt: string
   updatedAt: string
+  
+  // Admin review
+  rejectionReason: string | null
+  reviewedBy: string | null
+  reviewerName: string | null
+  
+  // Personal info
+  personalInfo: PersonalInfoPayload | null
+  
+  // Banking info (limited for security)
+  bankingInfo: BankingInfoDisplay | null
+  
+  // Contract info
+  contractInfo: ContractInfoPayload | null
+  
+  // Manager
+  managerName: string | null
+  
+  // Progress
+  progress: OnboardingProgress
 }
 
 export interface PersonalInfoPayload {
-  name: string
+  full_name: string
   address: string
+  city: string
   state_parish: string
   country: string
   zip_code: string
-  email: string
   phone: string
+  email: string
+  date_of_birth?: string
+  preferred_start_date?: string
 }
 
 export interface BankingInfoPayload {
   bank_name: string
   bank_address: string
-  swift_code: string
-  aba_wire_routing: string
+  branch?: string
+  account_number_encrypted: string // NOTE: Should be encrypted in production
+  account_type: string
+  swift_code?: string
+  aba_wire_routing?: string
+  currency: string
+}
+
+export interface BankingInfoDisplay {
+  bank_name: string
   account_type: string
   currency: string
-  account_number: string
+  last_four?: string // Only show last 4 digits
+}
+
+export interface ContractInfoPayload {
+  employment_type: string
+  position_title: string
+  department?: string
+  rate: number
+  rate_type: string
+  currency: string
+  start_date: string
+  end_date?: string
+  manager_id?: string
+}
+
+export interface OnboardingEvent {
+  id: string
+  case_id: string
+  event_type: OnboardingEventType
+  actor_user_id: string | null
+  payload: Record<string, any>
+  created_at: string
 }
 
 // =====================================================
 // Helper Functions
 // =====================================================
 
-function computeProgress(employee: any): OnboardingProgress {
+function computeProgress(
+  caseData: any,
+  personal: any,
+  banking: any,
+  contract: any
+): OnboardingProgress {
   const progress: OnboardingProgress = {
-    step1_submit_request: true, // Account exists
-    step2_personal_info: !!employee.personal_info_completed_at,
-    step3_banking_info: !!employee.banking_info_completed_at && !!employee.onboarding_submitted_at,
-    step4_admin_approval: employee.admin_approval_status === 'APPROVED',
-    step5_contract_complete: !!employee.contract_completed_at,
-    step6_manager_assigned: !!employee.reporting_manager_id && !!employee.manager_assigned_at,
+    step1_submit_request: true, // Case exists
+    step2_personal_info: !!personal?.completed_at,
+    step3_banking_info: !!banking?.completed_at && !!caseData.submitted_at,
+    step4_admin_approval: caseData.current_state === 'approved',
+    step5_contract_complete: !!contract?.completed_at,
+    step6_manager_assigned: !!contract?.manager_id,
     completed_steps: 0,
     total_steps: 6,
   }
@@ -107,31 +181,70 @@ function computeProgress(employee: any): OnboardingProgress {
   return progress
 }
 
-function transformToOnboardingData(employee: any, manager: any = null): OnboardingData {
+function transformToOnboardingData(caseData: any): OnboardingData {
+  const personal = caseData.personal?.[0] || null
+  const banking = caseData.banking?.[0] || null
+  const contract = caseData.contract?.[0] || null
+  const reviewer = caseData.reviewer || null
+  const manager = contract?.manager || null
+  
   return {
-    employeeId: employee.id,
-    employeeName: employee.name || '',
-    employeeEmail: employee.email || '',
+    caseId: caseData.id,
+    userId: caseData.user_id,
+    employeeId: caseData.employee_id,
     
-    personalInfoCompletedAt: employee.personal_info_completed_at,
-    bankingInfoCompletedAt: employee.banking_info_completed_at,
-    onboardingSubmittedAt: employee.onboarding_submitted_at,
-    adminApprovedAt: employee.admin_approved_at,
-    contractCompletedAt: employee.contract_completed_at,
-    managerAssignedAt: employee.manager_assigned_at,
+    currentState: caseData.current_state,
     
-    adminApprovalStatus: employee.admin_approval_status || 'NOT_SUBMITTED',
-    adminRejectionReason: employee.admin_rejection_reason,
-    adminApprovedBy: employee.admin_approved_by,
+    personalInfoCompleted: !!personal?.completed_at,
+    bankingInfoCompleted: !!banking?.completed_at,
+    contractCompleted: !!contract?.completed_at,
+    managerAssigned: !!contract?.manager_id,
     
-    reportingManagerId: employee.reporting_manager_id,
+    submittedAt: caseData.submitted_at,
+    approvedAt: caseData.approved_at,
+    rejectedAt: caseData.rejected_at,
+    createdAt: caseData.created_at,
+    updatedAt: caseData.updated_at,
+    
+    rejectionReason: caseData.rejection_reason,
+    reviewedBy: caseData.reviewed_by,
+    reviewerName: reviewer?.name || null,
+    
+    personalInfo: personal ? {
+      full_name: personal.full_name,
+      address: personal.address,
+      city: personal.city,
+      state_parish: personal.state_parish,
+      country: personal.country,
+      zip_code: personal.zip_code,
+      phone: personal.phone,
+      email: personal.email,
+      date_of_birth: personal.date_of_birth,
+      preferred_start_date: personal.preferred_start_date,
+    } : null,
+    
+    bankingInfo: banking ? {
+      bank_name: banking.bank_name,
+      account_type: banking.account_type,
+      currency: banking.currency,
+      // TODO: Extract last 4 digits from encrypted account number
+    } : null,
+    
+    contractInfo: contract ? {
+      employment_type: contract.employment_type,
+      position_title: contract.position_title,
+      department: contract.department,
+      rate: contract.rate,
+      rate_type: contract.rate_type,
+      currency: contract.currency,
+      start_date: contract.start_date,
+      end_date: contract.end_date,
+      manager_id: contract.manager_id,
+    } : null,
+    
     managerName: manager?.name || null,
     
-    onboardingStatus: employee.onboarding_status || 'INCOMPLETE',
-    progress: computeProgress(employee),
-    
-    createdAt: employee.created_at,
-    updatedAt: employee.updated_at,
+    progress: computeProgress(caseData, personal, banking, contract),
   }
 }
 
@@ -140,45 +253,132 @@ function transformToOnboardingData(employee: any, manager: any = null): Onboardi
 // =====================================================
 
 /**
- * Get onboarding status for an employee
+ * Get onboarding status for current user
  */
-export async function getOnboardingStatus(employeeId: string): Promise<OnboardingData | null> {
-  const { data: employee, error } = await supabase
-    .from('employees')
+export async function getOnboardingStatus(userId: string): Promise<OnboardingData | null> {
+  const { data: caseData, error } = await supabase
+    .from('onboarding_cases')
     .select(`
       *,
-      manager:reporting_manager_id(name)
+      personal:onboarding_personal(*),
+      banking:onboarding_banking(bank_name, account_type, currency, completed_at),
+      contract:onboarding_contract(*,manager:manager_id(name)),
+      reviewer:reviewed_by(name)
     `)
-    .eq('id', employeeId)
+    .eq('user_id', userId)
     .single()
   
-  if (error || !employee) {
+  if (error) {
+    if (error.code === 'PGRST116') {
+      // No case found - user hasn't started onboarding
+      return null
+    }
     console.error('Error fetching onboarding status:', error)
     return null
   }
   
-  return transformToOnboardingData(employee, employee.manager)
+  return transformToOnboardingData(caseData)
 }
 
 /**
- * Save personal information (Step 1)
+ * Get onboarding status by case ID (for admins)
+ */
+export async function getOnboardingStatusByCase(caseId: string): Promise<OnboardingData | null> {
+  const { data: caseData, error } = await supabase
+    .from('onboarding_cases')
+    .select(`
+      *,
+      personal:onboarding_personal(*),
+      banking:onboarding_banking(*),
+      contract:onboarding_contract(*,manager:manager_id(name)),
+      reviewer:reviewed_by(name)
+    `)
+    .eq('id', caseId)
+    .single()
+  
+  if (error) {
+    console.error('Error fetching onboarding case:', error)
+    return null
+  }
+  
+  return transformToOnboardingData(caseData)
+}
+
+/**
+ * Create new onboarding case (called during signup)
+ */
+export async function createOnboardingCase(userId: string): Promise<{ success: boolean; caseId?: string; error?: string }> {
+  try {
+    const { data: caseData, error: caseError } = await supabase
+      .from('onboarding_cases')
+      .insert({
+        user_id: userId,
+        current_state: 'draft',
+      })
+      .select('id')
+      .single()
+    
+    if (caseError) throw caseError
+    
+    // Create event
+    await supabase
+      .from('onboarding_events')
+      .insert({
+        case_id: caseData.id,
+        event_type: 'case_created',
+        actor_user_id: userId,
+        payload: {},
+      })
+    
+    return { success: true, caseId: caseData.id }
+  } catch (error) {
+    console.error('Error creating onboarding case:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create onboarding case',
+    }
+  }
+}
+
+/**
+ * Save personal information (Step 2)
  */
 export async function savePersonalInfo(
-  employeeId: string,
+  userId: string,
   payload: PersonalInfoPayload
 ): Promise<{ success: boolean; error?: string }> {
-  
   try {
+    // Get case ID
+    const { data: caseData } = await supabase
+      .from('onboarding_cases')
+      .select('id')
+      .eq('user_id', userId)
+      .single()
+    
+    if (!caseData) {
+      return { success: false, error: 'Onboarding case not found' }
+    }
+    
+    // Upsert personal info
     const { error } = await supabase
-      .from('employees')
-      .update({
+      .from('onboarding_personal')
+      .upsert({
+        case_id: caseData.id,
         ...payload,
-        personal_info_completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
       })
-      .eq('id', employeeId)
     
     if (error) throw error
+    
+    // Create event
+    await supabase
+      .from('onboarding_events')
+      .insert({
+        case_id: caseData.id,
+        event_type: 'personal_updated',
+        actor_user_id: userId,
+        payload: { fields: Object.keys(payload) },
+      })
     
     return { success: true }
   } catch (error) {
@@ -191,24 +391,46 @@ export async function savePersonalInfo(
 }
 
 /**
- * Save banking information (Step 2)
+ * Save banking information (Step 3)
  */
 export async function saveBankingInfo(
-  employeeId: string,
+  userId: string,
   payload: BankingInfoPayload
 ): Promise<{ success: boolean; error?: string }> {
-  
   try {
+    // Get case ID
+    const { data: caseData } = await supabase
+      .from('onboarding_cases')
+      .select('id')
+      .eq('user_id', userId)
+      .single()
+    
+    if (!caseData) {
+      return { success: false, error: 'Onboarding case not found' }
+    }
+    
+    // TODO: Encrypt account_number_encrypted in production using pgcrypto
+    
+    // Upsert banking info
     const { error } = await supabase
-      .from('employees')
-      .update({
+      .from('onboarding_banking')
+      .upsert({
+        case_id: caseData.id,
         ...payload,
-        banking_info_completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
       })
-      .eq('id', employeeId)
     
     if (error) throw error
+    
+    // Create event
+    await supabase
+      .from('onboarding_events')
+      .insert({
+        case_id: caseData.id,
+        event_type: 'banking_updated',
+        actor_user_id: userId,
+        payload: { bank_name: payload.bank_name },
+      })
     
     return { success: true }
   } catch (error) {
@@ -224,34 +446,55 @@ export async function saveBankingInfo(
  * Submit onboarding for admin review (completes Step 3)
  */
 export async function submitOnboarding(
-  employeeId: string
+  userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  
   try {
-    // First, verify both personal and banking info are completed
-    const { data: employee } = await supabase
-      .from('employees')
-      .select('personal_info_completed_at, banking_info_completed_at')
-      .eq('id', employeeId)
+    // Get case with personal and banking info
+    const { data: caseData } = await supabase
+      .from('onboarding_cases')
+      .select(`
+        id,
+        personal:onboarding_personal(completed_at),
+        banking:onboarding_banking(completed_at)
+      `)
+      .eq('user_id', userId)
       .single()
     
-    if (!employee?.personal_info_completed_at || !employee?.banking_info_completed_at) {
+    if (!caseData) {
+      return { success: false, error: 'Onboarding case not found' }
+    }
+    
+    // Verify both personal and banking are completed
+    const personal = caseData.personal?.[0]
+    const banking = caseData.banking?.[0]
+    
+    if (!personal?.completed_at || !banking?.completed_at) {
       return {
         success: false,
         error: 'Please complete both personal and banking information first',
       }
     }
     
+    // Update case to submitted
     const { error } = await supabase
-      .from('employees')
+      .from('onboarding_cases')
       .update({
-        onboarding_submitted_at: new Date().toISOString(),
-        admin_approval_status: 'WAITING',
-        updated_at: new Date().toISOString(),
+        current_state: 'submitted',
+        submitted_at: new Date().toISOString(),
       })
-      .eq('id', employeeId)
+      .eq('id', caseData.id)
     
     if (error) throw error
+    
+    // Create event
+    await supabase
+      .from('onboarding_events')
+      .insert({
+        case_id: caseData.id,
+        event_type: 'submitted',
+        actor_user_id: userId,
+        payload: {},
+      })
     
     return { success: true }
   } catch (error) {
@@ -267,22 +510,40 @@ export async function submitOnboarding(
  * Resubmit onboarding after rejection
  */
 export async function resubmitOnboarding(
-  employeeId: string
+  userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  
   try {
+    const { data: caseData } = await supabase
+      .from('onboarding_cases')
+      .select('id, current_state')
+      .eq('user_id', userId)
+      .single()
+    
+    if (!caseData || caseData.current_state !== 'rejected') {
+      return { success: false, error: 'Case is not in rejected state' }
+    }
+    
     const { error } = await supabase
-      .from('employees')
+      .from('onboarding_cases')
       .update({
-        onboarding_submitted_at: new Date().toISOString(),
-        admin_approval_status: 'WAITING',
-        admin_rejection_reason: null,
-        updated_at: new Date().toISOString(),
+        current_state: 'submitted',
+        submitted_at: new Date().toISOString(),
+        rejection_reason: null,
+        rejected_at: null,
       })
-      .eq('id', employeeId)
-      .eq('admin_approval_status', 'REJECTED')
+      .eq('id', caseData.id)
     
     if (error) throw error
+    
+    // Create event
+    await supabase
+      .from('onboarding_events')
+      .insert({
+        case_id: caseData.id,
+        event_type: 'resubmitted',
+        actor_user_id: userId,
+        payload: {},
+      })
     
     return { success: true }
   } catch (error) {
@@ -302,47 +563,47 @@ export async function resubmitOnboarding(
  * Get onboarding queue for admin review
  */
 export async function getOnboardingQueue(): Promise<OnboardingData[]> {
-  
-  const { data: employees, error } = await supabase
-    .from('employees')
+  const { data: cases, error } = await supabase
+    .from('onboarding_cases')
     .select(`
       *,
-      manager:reporting_manager_id(name)
+      personal:onboarding_personal(*),
+      banking:onboarding_banking(bank_name, account_type, currency, completed_at),
+      contract:onboarding_contract(*,manager:manager_id(name)),
+      reviewer:reviewed_by(name)
     `)
-    .eq('role', 'EMPLOYEE')
-    .eq('onboarding_status', 'INCOMPLETE')
-    .order('onboarding_submitted_at', { ascending: false, nullsFirst: false })
+    .not('current_state', 'in', '(approved,closed)')
+    .order('submitted_at', { ascending: false, nullsFirst: false })
   
-  if (error || !employees) {
+  if (error) {
     console.error('Error fetching onboarding queue:', error)
     return []
   }
   
-  return employees.map((emp) => transformToOnboardingData(emp, emp.manager))
+  return cases.map(transformToOnboardingData)
 }
 
 /**
- * Approve employee onboarding (Step 4)
+ * Approve employee onboarding (uses DB function)
  */
 export async function adminApproveOnboarding(
-  employeeId: string,
-  adminId: string
+  caseId: string,
+  managerId: string,
+  contractInfo: ContractInfoPayload
 ): Promise<{ success: boolean; error?: string }> {
-  
   try {
-    const { error } = await supabase
-      .from('employees')
-      .update({
-        admin_approval_status: 'APPROVED',
-        admin_approved_at: new Date().toISOString(),
-        admin_approved_by: adminId,
-        admin_rejection_reason: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', employeeId)
-      .eq('admin_approval_status', 'WAITING')
+    const { data, error } = await supabase.rpc('approve_onboarding', {
+      p_case_id: caseId,
+      p_manager_employee_id: managerId,
+      p_contract: contractInfo as any,
+    })
     
     if (error) throw error
+    
+    const result = data?.[0]
+    if (!result?.success) {
+      return { success: false, error: result?.message || 'Approval failed' }
+    }
     
     return { success: true }
   } catch (error) {
@@ -355,33 +616,28 @@ export async function adminApproveOnboarding(
 }
 
 /**
- * Reject employee onboarding
+ * Reject employee onboarding (uses DB function)
  */
 export async function adminRejectOnboarding(
-  employeeId: string,
+  caseId: string,
   reason: string
 ): Promise<{ success: boolean; error?: string }> {
-  
   if (!reason?.trim()) {
-    return {
-      success: false,
-      error: 'Rejection reason is required',
-    }
+    return { success: false, error: 'Rejection reason is required' }
   }
   
   try {
-    const { error } = await supabase
-      .from('employees')
-      .update({
-        admin_approval_status: 'REJECTED',
-        admin_rejection_reason: reason,
-        admin_approved_at: null,
-        admin_approved_by: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', employeeId)
+    const { data, error } = await supabase.rpc('reject_onboarding', {
+      p_case_id: caseId,
+      p_rejection_reason: reason,
+    })
     
     if (error) throw error
+    
+    const result = data?.[0]
+    if (!result?.success) {
+      return { success: false, error: result?.message || 'Rejection failed' }
+    }
     
     return { success: true }
   } catch (error) {
@@ -394,88 +650,49 @@ export async function adminRejectOnboarding(
 }
 
 /**
- * Mark contract information as complete (Step 5)
+ * Get onboarding events (audit trail)
  */
-export async function adminCompleteContract(
-  employeeId: string,
-  adminId: string,
-  contractData?: {
-    hourly_rate?: number
-    employment_type?: string
-    contract_start_date?: string
-  }
-): Promise<{ success: boolean; error?: string }> {
+export async function getOnboardingEvents(caseId: string): Promise<OnboardingEvent[]> {
+  const { data: events, error } = await supabase
+    .from('onboarding_events')
+    .select('*')
+    .eq('case_id', caseId)
+    .order('created_at', { ascending: true })
   
-  try {
-    const updateData: any = {
-      contract_completed_at: new Date().toISOString(),
-      contract_completed_by: adminId,
-      updated_at: new Date().toISOString(),
-    }
-    
-    // Include contract data if provided
-    if (contractData) {
-      Object.assign(updateData, contractData)
-    }
-    
-    const { error } = await supabase
-      .from('employees')
-      .update(updateData)
-      .eq('id', employeeId)
-    
-    if (error) throw error
-    
-    return { success: true }
-  } catch (error) {
-    console.error('Error completing contract:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to complete contract',
-    }
+  if (error) {
+    console.error('Error fetching onboarding events:', error)
+    return []
   }
+  
+  return events || []
 }
 
 /**
- * Assign manager to employee (Step 6)
+ * Check if employee can submit timesheets (approved + active)
  */
-export async function adminAssignManager(
-  employeeId: string,
-  managerId: string
-): Promise<{ success: boolean; error?: string }> {
-  
-  try {
-    const { error } = await supabase
-      .from('employees')
-      .update({
-        reporting_manager_id: managerId,
-        manager_assigned_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', employeeId)
-    
-    if (error) throw error
-    
-    return { success: true }
-  } catch (error) {
-    console.error('Error assigning manager:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to assign manager',
-    }
-  }
-}
-
-/**
- * Check if employee can submit timesheets (onboarding complete)
- */
-export async function canSubmitTimesheets(employeeId: string): Promise<boolean> {
-  
+export async function canSubmitTimesheets(userId: string): Promise<boolean> {
+  // Check if user has an active employee record
   const { data: employee } = await supabase
     .from('employees')
-    .select('onboarding_status')
+    .select('status')
+    .eq('user_id', userId)
+    .single()
+  
+  return employee?.status === 'active'
+}
+
+/**
+ * Legacy compatibility: Get onboarding by employee ID
+ * (for backward compatibility with existing UI code)
+ */
+export async function getOnboardingStatusByEmployeeId(employeeId: string): Promise<OnboardingData | null> {
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('user_id')
     .eq('id', employeeId)
     .single()
   
-  return employee?.onboarding_status === 'COMPLETE'
+  if (!employee) return null
+  
+  return getOnboardingStatus(employee.user_id)
 }
-

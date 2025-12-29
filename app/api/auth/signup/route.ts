@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase/server'
-import { v4 as uuidv4 } from 'uuid'
 
 // Force dynamic to prevent static generation error
 export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/auth/signup
- * Create a new user account
+ * Create a new user account with Supabase Auth + Onboarding
  * 
- * Note: This is a demo/mock signup endpoint.
- * In production, this would integrate with a proper auth provider (Supabase Auth, Auth0, etc.)
+ * Flow:
+ * 1. Create auth.users entry via Supabase Auth
+ * 2. Create onboarding_cases entry
+ * 3. Return user details for login
  */
 export async function POST(request: NextRequest) {
   try {
@@ -43,86 +44,76 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if email already exists
-    const { data: existingUser, error: checkError } = await supabase
-      .from('employees')
-      .select('id')
-      .eq('email', email.toLowerCase())
-      .maybeSingle()
+    // Check if email already exists in auth
+    const { data: existingAuthUser } = await supabase.auth.admin.listUsers()
+    const emailExists = existingAuthUser?.users?.some(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    )
 
-    if (checkError) {
-      console.error('Error checking existing user:', checkError)
-    }
-
-    if (existingUser) {
+    if (emailExists) {
       return NextResponse.json(
         { error: 'An account with this email already exists' },
         { status: 409 }
       )
     }
 
-    // Create new employee record
-    // Note: In production, password would be hashed and stored securely
-    // This demo stores users without password authentication
-    // Note: onboarding_status and admin_approval_status will be set by DB default after running migration 012
-    const { data: newEmployee, error: insertError } = await supabase
-      .from('employees')
-      .insert({
-        id: uuidv4(),
+    // Create Supabase Auth user
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email: email.toLowerCase().trim(),
+      password,
+      email_confirm: true, // Auto-confirm email for demo
+      user_metadata: {
         name: name.trim(),
-        email: email.toLowerCase().trim(),
-        role: 'employee', // Default role (lowercase) - admin will assign proper role later
-        status: 'ACTIVE', // Use ACTIVE status (constraint doesn't allow PENDING)
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
+      },
+    })
 
-    if (insertError) {
-      console.error('Error creating employee:', {
-        code: insertError.code,
-        message: insertError.message,
-        details: insertError.details,
-        hint: insertError.hint,
-      })
-      
-      // Return more specific error messages for known issues
-      if (insertError.code === '23505') {
-        return NextResponse.json(
-          { error: 'An account with this email already exists' },
-          { status: 409 }
-        )
-      }
-      
-      if (insertError.code === '42703') {
-        // Column does not exist
-        return NextResponse.json(
-          { error: 'Database schema error. Please contact administrator.', details: insertError.message },
-          { status: 500 }
-        )
-      }
-      
-      if (insertError.code === '23514') {
-        // Check constraint violation
-        return NextResponse.json(
-          { error: 'Database constraint error. Please contact administrator.', details: insertError.message },
-          { status: 500 }
-        )
-      }
-      
+    if (authError || !authData.user) {
+      console.error('Error creating auth user:', authError)
       return NextResponse.json(
-        { error: 'Failed to create account. Please try again.', details: insertError.message },
+        { error: authError?.message || 'Failed to create account' },
         { status: 500 }
       )
     }
 
-    console.log(`New user created: ${newEmployee.id} (${email})`)
+    const userId = authData.user.id
+
+    // Create onboarding case
+    const { data: onboardingCase, error: caseError } = await supabase
+      .from('onboarding_cases')
+      .insert({
+        user_id: userId,
+        current_state: 'draft',
+      })
+      .select('id')
+      .single()
+
+    if (caseError) {
+      console.error('Error creating onboarding case:', caseError)
+      // Clean up auth user if onboarding creation fails
+      await supabase.auth.admin.deleteUser(userId)
+      return NextResponse.json(
+        { error: 'Failed to initialize onboarding. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    // Create initial onboarding event
+    await supabase.from('onboarding_events').insert({
+      case_id: onboardingCase.id,
+      event_type: 'case_created',
+      actor_user_id: userId,
+      payload: {},
+    })
+
+    console.log(`New user created: ${userId} (${email}) - Onboarding case: ${onboardingCase.id}`)
 
     return NextResponse.json({
       success: true,
-      message: 'Account created successfully. Please wait for admin approval.',
-      employeeId: newEmployee.id,
+      message: 'Account created successfully. Complete your onboarding to get started!',
+      userId: userId,
+      caseId: onboardingCase.id,
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
     })
   } catch (error) {
     console.error('Signup error:', error)

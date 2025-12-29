@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import { savePersonalInfo, getOnboardingStatus } from '@/lib/data/onboarding'
-import { getEmployeeById } from '@/lib/supabase/queries/employees'
+import { getAuthUser } from '@/lib/utils/auth'
 
 export default function PersonalInformationForm() {
   const router = useRouter()
-  const [employeeId, setEmployeeId] = useState('')
+  const [userId, setUserId] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
@@ -16,8 +16,9 @@ export default function PersonalInformationForm() {
   const [formData, setFormData] = useState({
     fullName: '',
     address: '',
+    city: '',
     state: '',
-    country: '',
+    country: 'Jamaica',
     zipCode: '',
     email: '',
     phone: '',
@@ -26,33 +27,35 @@ export default function PersonalInformationForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    const storedEmployeeId = localStorage.getItem('employeeId')
-    if (!storedEmployeeId) {
+    const authUser = getAuthUser()
+    if (!authUser.userId) {
       router.push('/sign-in')
       return
     }
-    setEmployeeId(storedEmployeeId)
+    setUserId(authUser.userId)
 
     // Load existing data if available
-    loadExistingData(storedEmployeeId)
+    loadExistingData(authUser.userId)
   }, [router])
 
-  const loadExistingData = async (empId: string) => {
+  const loadExistingData = async (uid: string) => {
     try {
-      const employee = await getEmployeeById(empId)
-      if (employee) {
+      const onboardingData = await getOnboardingStatus(uid)
+      if (onboardingData?.personalInfo) {
+        const personal = onboardingData.personalInfo
         setFormData({
-          fullName: employee.name || '',
-          address: employee.address || '',
-          state: employee.state_parish || '',
-          country: employee.country || '',
-          zipCode: employee.zip_code || '',
-          email: employee.email || '',
-          phone: employee.phone || '',
+          fullName: personal.full_name || '',
+          address: personal.address || '',
+          city: personal.city || '',
+          state: personal.state_parish || '',
+          country: personal.country || 'Jamaica',
+          zipCode: personal.zip_code || '',
+          email: personal.email || '',
+          phone: personal.phone || '',
         })
       }
     } catch (error) {
-      console.error('Error loading employee data:', error)
+      console.error('Error loading onboarding data:', error)
     } finally {
       setIsLoading(false)
     }
@@ -101,9 +104,10 @@ export default function PersonalInformationForm() {
     setError('')
 
     try {
-      const result = await savePersonalInfo(employeeId, {
-        name: formData.fullName,
+      const result = await savePersonalInfo(userId, {
+        full_name: formData.fullName,
         address: formData.address,
+        city: formData.city,
         state_parish: formData.state,
         country: formData.country,
         zip_code: formData.zipCode,
@@ -218,10 +222,32 @@ export default function PersonalInformationForm() {
               )}
             </div>
 
+            {/* City */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                City <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.city}
+                onChange={(e) => {
+                  setFormData({ ...formData, city: e.target.value })
+                  setFieldErrors({ ...fieldErrors, city: '' })
+                }}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                  fieldErrors.city ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder="Enter your city"
+              />
+              {fieldErrors.city && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.city}</p>
+              )}
+            </div>
+
             {/* State */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                State <span className="text-red-500">*</span>
+                State/Parish <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -233,7 +259,7 @@ export default function PersonalInformationForm() {
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
                   fieldErrors.state ? 'border-red-300' : 'border-gray-300'
                 }`}
-                placeholder="Enter your state"
+                placeholder="Enter your state or parish"
               />
               {fieldErrors.state && (
                 <p className="mt-1 text-sm text-red-600">{fieldErrors.state}</p>
