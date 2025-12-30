@@ -15,7 +15,8 @@ SET
   
   -- Ensure email is confirmed (required for login)
   email_confirmed_at     = COALESCE(email_confirmed_at, NOW()),
-  confirmed_at           = COALESCE(confirmed_at, NOW()),
+  
+  -- Note: confirmed_at is a GENERATED column, don't update it directly
   
   -- Update timestamp
   updated_at             = NOW()
@@ -26,8 +27,7 @@ WHERE email IN ('admin@test.com', 'manager@test.com', 'employee@test.com')
     email_change IS NULL OR
     email_change_token_new IS NULL OR
     recovery_token IS NULL OR
-    email_confirmed_at IS NULL OR
-    confirmed_at IS NULL
+    email_confirmed_at IS NULL
   );
 
 -- Step 2: Verify the fix
