@@ -7,7 +7,6 @@ import {
   Clock, 
   Briefcase, 
   Building2, 
-  User, 
   Pencil, 
   Save
 } from 'lucide-react'
@@ -20,7 +19,7 @@ interface EmployeeContractInfoTabProps {
   onUpdateContractInfo?: (info: ContractInfo) => void
   managers?: { id: string; name: string }[]
   onToast?: (options: { title: string; variant: 'success' | 'error' }) => void
-  onManagerUpdate?: (managerId: string | null, managerName: string | null) => void
+  // Note: Reporting Manager is now managed exclusively in Access Control tab
 }
 
 const DEPARTMENTS = [
@@ -40,7 +39,6 @@ export function EmployeeContractInfoTab({
   onUpdateContractInfo,
   managers = [],
   onToast,
-  onManagerUpdate
 }: EmployeeContractInfoTabProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [formValues, setFormValues] = useState<ContractInfo>(contractInfo)
@@ -94,13 +92,9 @@ export function EmployeeContractInfoTab({
     setIsSaving(true)
 
     try {
-      // Find the selected manager's ID from the name
-      const selectedManager = managers.find(m => m.name === formValues.reportingManager)
-      const managerId = selectedManager?.id || formValues.reportingManagerId || null
-
       // Prepare update payload based on rate type
+      // ✅ Reporting manager is now managed in Access Control tab only
       const updatePayload: any = {
-        reporting_manager_id: managerId,
         rate_type: formValues.rateType,
       }
 
@@ -115,7 +109,7 @@ export function EmployeeContractInfoTab({
         updatePayload.overtime_rate = null // Clear overtime if switching to fixed
       }
 
-      // Call the API to update employee info (including manager assignment)
+      // Call the API to update employee contract info
       const response = await fetch(`/api/admin/employees/${employeeId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -127,19 +121,8 @@ export function EmployeeContractInfoTab({
         throw new Error(errorData.error || 'Failed to update contract info')
       }
 
-      // Update the form values with the manager ID
-      const updatedFormValues = {
-        ...formValues,
-        reportingManagerId: managerId || undefined
-      }
-
       // Update parent state
-      onUpdateContractInfo?.(updatedFormValues)
-      
-      // Notify parent about manager change (for Employee Directory sync)
-      if (managerId !== contractInfo.reportingManagerId) {
-        onManagerUpdate?.(managerId, formValues.reportingManager || null)
-      }
+      onUpdateContractInfo?.(formValues)
       
       // Exit edit mode
       setIsEditing(false)
@@ -272,24 +255,13 @@ export function EmployeeContractInfoTab({
           </div>
 
           {/* Department */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3">
             <div className="flex items-center gap-2 text-slate-500">
               <Building2 className="w-4 h-4" />
               <span className="text-xs">Department</span>
             </div>
             <span className="text-sm font-medium text-slate-900 mt-1 sm:mt-0">
               {formValues.department}
-            </span>
-          </div>
-
-          {/* Reporting Manager */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2 text-slate-500">
-              <User className="w-4 h-4" />
-              <span className="text-xs">Reporting Manager</span>
-            </div>
-            <span className="text-sm font-medium text-slate-900 mt-1 sm:mt-0">
-              {formValues.reportingManager}
             </span>
           </div>
         </div>
@@ -482,29 +454,6 @@ export function EmployeeContractInfoTab({
             label: dept,
           }))}
           clearable={false}
-        />
-
-        {/* Reporting Manager */}
-        <Combobox
-          label="Reporting Manager"
-          placeholder="Select manager"
-          value={formValues.reportingManagerId || ''}
-          onChange={(value) => {
-            const selectedManager = managers.find(m => m.id === value)
-            setFormValues(prev => ({
-              ...prev,
-              reportingManagerId: value || undefined,
-              reportingManager: selectedManager?.name || ''
-            }))
-          }}
-          options={[
-            { value: '', label: 'No Manager' },
-            ...managers.map(manager => ({
-              value: manager.id,
-              label: manager.name,
-            })),
-          ]}
-          emptyMessage="No managers available"
         />
       </div>
     </div>

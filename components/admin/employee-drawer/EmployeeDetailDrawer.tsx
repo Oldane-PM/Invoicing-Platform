@@ -313,12 +313,6 @@ export function EmployeeDetailDrawer({
                   onUpdateContractInfo={handleUpdateContractInfo}
                   managers={managers}
                   onToast={showToast}
-                  onManagerUpdate={(managerId, managerName) => {
-                    // ✅ Refresh drawer data to sync both tabs
-                    loadEmployeeData(employee.id)
-                    // Notify parent component (Employee Directory) about manager change
-                    onManagerUpdate?.(employee.id, managerId, managerName)
-                  }}
                 />
               )}
               {activeTab === 'access-control' && employee && employeeData && (
