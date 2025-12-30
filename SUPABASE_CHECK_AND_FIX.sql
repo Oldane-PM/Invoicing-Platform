@@ -1,12 +1,41 @@
 -- ========================================
--- MASTER DATABASE SETUP SCRIPT
--- Run this ONCE in Supabase SQL Editor
+-- CHECK DATABASE STATUS & FIX MISSING TABLES
 -- ========================================
--- This script creates all necessary tables and sets up the database
--- Run in order, all at once (copy-paste entire file)
+-- This script checks what exists and creates only what's missing
+-- Safe to run multiple times (fully idempotent)
 
 -- ========================================
--- Step 1: Create employees table
+-- Step 1: Check current database status
+-- ========================================
+SELECT 
+  '📊 Database Status Check' AS info,
+  NOW() AS checked_at;
+
+-- Check which tables exist
+SELECT 
+  'Tables that exist:' AS status,
+  table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'employees', 'submissions', 'team_members', 'invoices', 'notifications',
+    'onboarding_cases', 'onboarding_personal', 'onboarding_banking', 'onboarding_events'
+  )
+ORDER BY table_name;
+
+-- ========================================
+-- Step 2: Create onboarding_state enum (if not exists)
+-- ========================================
+DO $$ BEGIN
+  CREATE TYPE onboarding_state AS ENUM ('draft', 'submitted', 'reviewing', 'approved', 'rejected', 'closed');
+  RAISE NOTICE '✅ Created onboarding_state enum';
+EXCEPTION
+  WHEN duplicate_object THEN 
+    RAISE NOTICE '⚠️  onboarding_state enum already exists (skipped)';
+END $$;
+
+-- ========================================
+-- Step 3: Create employees table (if not exists)
 -- ========================================
 CREATE TABLE IF NOT EXISTS employees (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -44,7 +73,7 @@ CREATE TABLE IF NOT EXISTS employees (
 );
 
 -- ========================================
--- Step 2: Create submissions table
+-- Step 4: Create other tables (if not exist)
 -- ========================================
 CREATE TABLE IF NOT EXISTS submissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -63,9 +92,6 @@ CREATE TABLE IF NOT EXISTS submissions (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ========================================
--- Step 3: Create team_members table
--- ========================================
 CREATE TABLE IF NOT EXISTS team_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   manager_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
@@ -80,9 +106,6 @@ CREATE TABLE IF NOT EXISTS team_members (
   CHECK (contract_end > contract_start)
 );
 
--- ========================================
--- Step 4: Create invoices table
--- ========================================
 CREATE TABLE IF NOT EXISTS invoices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   submission_id UUID REFERENCES submissions(id) ON DELETE SET NULL,
@@ -95,9 +118,6 @@ CREATE TABLE IF NOT EXISTS invoices (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ========================================
--- Step 5: Create notifications table
--- ========================================
 CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
@@ -107,16 +127,6 @@ CREATE TABLE IF NOT EXISTS notifications (
   is_read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
--- ========================================
--- Step 6: Create onboarding tables
--- ========================================
--- Create onboarding_state enum (if not exists)
-DO $$ BEGIN
-  CREATE TYPE onboarding_state AS ENUM ('draft', 'submitted', 'reviewing', 'approved', 'rejected', 'closed');
-EXCEPTION
-  WHEN duplicate_object THEN NULL;
-END $$;
 
 CREATE TABLE IF NOT EXISTS onboarding_cases (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -179,7 +189,7 @@ CREATE TABLE IF NOT EXISTS onboarding_events (
 );
 
 -- ========================================
--- Step 7: Create indexes
+-- Step 5: Create indexes (if not exist)
 -- ========================================
 CREATE INDEX IF NOT EXISTS idx_employees_user_id ON employees(user_id);
 CREATE INDEX IF NOT EXISTS idx_employees_email ON employees(email);
@@ -202,7 +212,7 @@ CREATE INDEX IF NOT EXISTS idx_onboarding_cases_state ON onboarding_cases(curren
 CREATE INDEX IF NOT EXISTS idx_onboarding_cases_submitted ON onboarding_cases(submitted_at) WHERE submitted_at IS NOT NULL;
 
 -- ========================================
--- Step 8: Create helper functions
+-- Step 6: Create helper function (if not exists)
 -- ========================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -212,29 +222,51 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply triggers
-CREATE TRIGGER update_employees_updated_at
-  BEFORE UPDATE ON employees
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- ========================================
+-- Step 7: Create triggers (if not exist)
+-- ========================================
+DO $$ BEGIN
+  CREATE TRIGGER update_employees_updated_at
+    BEFORE UPDATE ON employees
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TRIGGER update_submissions_updated_at
-  BEFORE UPDATE ON submissions
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$ BEGIN
+  CREATE TRIGGER update_submissions_updated_at
+    BEFORE UPDATE ON submissions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TRIGGER update_team_members_updated_at
-  BEFORE UPDATE ON team_members
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$ BEGIN
+  CREATE TRIGGER update_team_members_updated_at
+    BEFORE UPDATE ON team_members
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TRIGGER update_invoices_updated_at
-  BEFORE UPDATE ON invoices
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$ BEGIN
+  CREATE TRIGGER update_invoices_updated_at
+    BEFORE UPDATE ON invoices
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TRIGGER update_onboarding_cases_updated_at
-  BEFORE UPDATE ON onboarding_cases
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$ BEGIN
+  CREATE TRIGGER update_onboarding_cases_updated_at
+    BEFORE UPDATE ON onboarding_cases
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ========================================
--- Step 9: Enable Row Level Security
+-- Step 8: Enable RLS (safe to run multiple times)
 -- ========================================
 ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE submissions ENABLE ROW LEVEL SECURITY;
@@ -247,7 +279,7 @@ ALTER TABLE onboarding_banking ENABLE ROW LEVEL SECURITY;
 ALTER TABLE onboarding_events ENABLE ROW LEVEL SECURITY;
 
 -- ========================================
--- Step 10: Create RLS Policies
+-- Step 9: Create RLS policies (drop if exist, then create)
 -- ========================================
 
 -- Employees policies
@@ -324,17 +356,34 @@ CREATE POLICY "Users can update own notifications"
   USING (employee_id = auth.uid());
 
 -- ========================================
--- ✅ SETUP COMPLETE!
+-- ✅ FINAL STATUS CHECK
 -- ========================================
-SELECT 'Database setup complete! ✅' AS status;
-
--- Verify tables were created
 SELECT 
-  table_name, 
-  (SELECT COUNT(*) FROM information_schema.columns WHERE table_name = t.table_name) as column_count
+  '✅ Setup Complete!' AS status,
+  COUNT(*) as tables_created
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'employees', 'submissions', 'team_members', 'invoices', 'notifications',
+    'onboarding_cases', 'onboarding_personal', 'onboarding_banking', 'onboarding_events'
+  );
+
+-- Show all tables with column counts
+SELECT 
+  table_name,
+  (SELECT COUNT(*) 
+   FROM information_schema.columns 
+   WHERE table_name = t.table_name 
+   AND table_schema = 'public') as columns,
+  (SELECT COUNT(*) 
+   FROM pg_indexes 
+   WHERE tablename = t.table_name 
+   AND schemaname = 'public') as indexes
 FROM information_schema.tables t
 WHERE table_schema = 'public'
-  AND table_name IN ('employees', 'submissions', 'team_members', 'invoices', 'notifications', 
-                     'onboarding_cases', 'onboarding_personal', 'onboarding_banking')
+  AND table_name IN (
+    'employees', 'submissions', 'team_members', 'invoices', 'notifications',
+    'onboarding_cases', 'onboarding_personal', 'onboarding_banking', 'onboarding_events'
+  )
 ORDER BY table_name;
 
