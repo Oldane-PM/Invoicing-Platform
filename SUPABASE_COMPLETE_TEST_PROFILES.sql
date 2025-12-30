@@ -312,15 +312,38 @@ ON CONFLICT (case_id) DO UPDATE SET
 -- STEP 5: Update Onboarding Cases to Approved
 -- =====================================================
 
+-- Admin onboarding (approved in 2020)
 UPDATE onboarding_cases oc
 SET 
   current_state = 'approved',
-  submitted_at = e.start_date,
-  approved_at = e.start_date + interval '1 hour',
+  submitted_at = '2020-01-15 10:00:00'::timestamptz,
+  approved_at = '2020-01-15 11:00:00'::timestamptz,
   updated_at = now()
-FROM employees e
-WHERE e.user_id = oc.user_id
-  AND e.email IN ('admin@test.com', 'manager@test.com', 'employee@test.com');
+FROM auth.users u
+WHERE u.id = oc.user_id
+  AND u.email = 'admin@test.com';
+
+-- Manager onboarding (approved in 2021)
+UPDATE onboarding_cases oc
+SET 
+  current_state = 'approved',
+  submitted_at = '2021-03-10 10:00:00'::timestamptz,
+  approved_at = '2021-03-10 11:00:00'::timestamptz,
+  updated_at = now()
+FROM auth.users u
+WHERE u.id = oc.user_id
+  AND u.email = 'manager@test.com';
+
+-- Employee onboarding (approved in 2022)
+UPDATE onboarding_cases oc
+SET 
+  current_state = 'approved',
+  submitted_at = '2022-06-01 10:00:00'::timestamptz,
+  approved_at = '2022-06-01 11:00:00'::timestamptz,
+  updated_at = now()
+FROM auth.users u
+WHERE u.id = oc.user_id
+  AND u.email = 'employee@test.com';
 
 -- =====================================================
 -- STEP 6: Verify Complete Profiles
