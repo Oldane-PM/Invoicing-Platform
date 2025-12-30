@@ -314,11 +314,34 @@ export async function getOnboardingStatusByCase(caseId: string): Promise<Onboard
 }
 
 /**
- * Create new onboarding case (called during signup)
+ * Create new onboarding case - IDEMPOTENT (get or create)
+ * If case already exists, returns existing case.
+ * If not, creates new case.
  */
 export async function createOnboardingCase(userId: string): Promise<{ success: boolean; caseId?: string; error?: string }> {
   try {
-    const { data: caseData, error: caseError } = await supabase
+    console.log('[DAL] createOnboardingCase - checking for existing case for userId:', userId)
+    
+    // 1. Check if case already exists
+    const { data: existingCase, error: fetchError } = await supabase
+      .from('onboarding_cases')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle()
+    
+    if (fetchError) {
+      console.error('[DAL] Error checking for existing case:', fetchError)
+      throw fetchError
+    }
+    
+    if (existingCase) {
+      console.log('[DAL] Onboarding case already exists:', existingCase.id)
+      return { success: true, caseId: existingCase.id }
+    }
+    
+    // 2. Create new case if doesn't exist
+    console.log('[DAL] Creating new onboarding case for userId:', userId)
+    const { data: newCase, error: createError } = await supabase
       .from('onboarding_cases')
       .insert({
         user_id: userId,
@@ -327,24 +350,43 @@ export async function createOnboardingCase(userId: string): Promise<{ success: b
       .select('id')
       .single()
     
-    if (caseError) throw caseError
+    if (createError) {
+      // If we get a unique constraint violation (23505), another request may have created it
+      // Try fetching again
+      if (createError.code === '23505') {
+        console.log('[DAL] Unique constraint - re-fetching case')
+        const { data: retryCase } = await supabase
+          .from('onboarding_cases')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle()
+        
+        if (retryCase) {
+          console.log('[DAL] Found case on retry:', retryCase.id)
+          return { success: true, caseId: retryCase.id }
+        }
+      }
+      throw createError
+    }
     
-    // Create event
+    console.log('[DAL] New onboarding case created:', newCase.id)
+    
+    // 3. Create initial event
     await supabase
       .from('onboarding_events')
       .insert({
-        case_id: caseData.id,
+        case_id: newCase.id,
         event_type: 'case_created',
         actor_user_id: userId,
         payload: {},
       })
     
-    return { success: true, caseId: caseData.id }
-  } catch (error) {
-    console.error('Error creating onboarding case:', error)
+    return { success: true, caseId: newCase.id }
+  } catch (error: any) {
+    console.error('[DAL] Error in createOnboardingCase:', error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to create onboarding case',
+      error: error.message || 'Failed to create onboarding case',
     }
   }
 }

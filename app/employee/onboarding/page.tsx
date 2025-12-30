@@ -3,30 +3,34 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle, ArrowRight, Info } from 'lucide-react'
-import { getOnboardingStatus } from '@/lib/data/onboarding'
+import { getOnboardingStatus, createOnboardingCase } from '@/lib/data/onboarding'
 
 export default function OnboardingWelcome() {
   const router = useRouter()
   const [employeeName, setEmployeeName] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [isStarting, setIsStarting] = useState(false)
+  const [error, setError] = useState('')
+  const [userId, setUserId] = useState('')
 
   useEffect(() => {
     // Get userId (auth user) - this is what we need for onboarding
-    const userId = localStorage.getItem('userId') || localStorage.getItem('employeeId')
+    const uid = localStorage.getItem('userId') || localStorage.getItem('employeeId')
     const name = localStorage.getItem('employeeName') || localStorage.getItem('name')
     setEmployeeName(name || 'Employee')
+    setUserId(uid || '')
 
     // Only redirect to sign-in if NO auth user at all
-    if (!userId) {
+    if (!uid) {
       console.log('[Onboarding Welcome] No userId found, redirecting to sign-in')
       router.push('/sign-in')
       return
     }
 
-    console.log('[Onboarding Welcome] Checking onboarding status for userId:', userId)
+    console.log('[Onboarding Welcome] Checking onboarding status for userId:', uid)
 
     // Check onboarding status using userId (not employeeId!)
-    getOnboardingStatus(userId).then((status) => {
+    getOnboardingStatus(uid).then((status) => {
       console.log('[Onboarding Welcome] Status:', status)
       
       if (status) {
@@ -48,6 +52,38 @@ export default function OnboardingWelcome() {
       setIsLoading(false)
     })
   }, [router])
+
+  const handleStartOnboarding = async () => {
+    if (!userId) {
+      setError('Session expired. Please log in again.')
+      return
+    }
+
+    setIsStarting(true)
+    setError('')
+
+    try {
+      console.log('[Onboarding Welcome] Creating onboarding case for userId:', userId)
+      
+      // Create onboarding case (idempotent - checks if exists first)
+      const result = await createOnboardingCase(userId)
+      
+      if (!result.success) {
+        console.error('[Onboarding Welcome] Failed to create case:', result.error)
+        setError(result.error || 'Failed to start onboarding. Please try again.')
+        setIsStarting(false)
+        return
+      }
+
+      console.log('[Onboarding Welcome] Case created/found, navigating to personal info')
+      // Navigate to personal info form
+      router.push('/employee/onboarding/personal')
+    } catch (err: any) {
+      console.error('[Onboarding Welcome] Error starting onboarding:', err)
+      setError('An unexpected error occurred. Please try again.')
+      setIsStarting(false)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -127,13 +163,30 @@ export default function OnboardingWelcome() {
           </div>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <p className="text-red-800 text-sm">{error}</p>
+          </div>
+        )}
+
         {/* Start Button */}
         <button
-          onClick={() => router.push('/employee/onboarding/personal')}
-          className="w-full bg-indigo-600 text-white py-4 px-6 rounded-xl font-semibold text-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+          onClick={handleStartOnboarding}
+          disabled={isStarting}
+          className="w-full bg-indigo-600 text-white py-4 px-6 rounded-xl font-semibold text-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Start Onboarding
-          <ArrowRight className="w-5 h-5" />
+          {isStarting ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              Creating your onboarding...
+            </>
+          ) : (
+            <>
+              Start Onboarding
+              <ArrowRight className="w-5 h-5" />
+            </>
+          )}
         </button>
 
         {/* Help Link */}
