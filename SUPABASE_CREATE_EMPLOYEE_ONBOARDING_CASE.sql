@@ -9,9 +9,11 @@ DO $$
 DECLARE
   v_user_id UUID;
   v_case_id UUID;
+  v_employee_id UUID;
+  v_admin_id UUID;
 BEGIN
-  -- Get the user_id for employee@test.com
-  SELECT user_id INTO v_user_id
+  -- Get the user_id and employee_id for employee@test.com
+  SELECT user_id, id INTO v_user_id, v_employee_id
   FROM employees
   WHERE email = 'employee@test.com';
   
@@ -20,6 +22,14 @@ BEGIN
   END IF;
   
   RAISE NOTICE 'Found user_id: %', v_user_id;
+  RAISE NOTICE 'Found employee_id: %', v_employee_id;
+  
+  -- Get admin_id for reviewed_by
+  SELECT id INTO v_admin_id
+  FROM employees
+  WHERE email = 'admin@test.com';
+  
+  RAISE NOTICE 'Found admin_id (reviewer): %', v_admin_id;
   
   -- Check if onboarding case already exists
   SELECT id INTO v_case_id
@@ -32,9 +42,11 @@ BEGIN
     -- Update existing case to approved
     UPDATE onboarding_cases
     SET
+      employee_id = v_employee_id,
       current_state = 'approved',
       submitted_at = '2024-01-12 12:00:00'::timestamptz,
       approved_at = '2024-01-12 13:00:00'::timestamptz,
+      reviewed_by = v_admin_id,
       updated_at = NOW()
     WHERE id = v_case_id;
     
@@ -44,16 +56,20 @@ BEGIN
     -- Create new approved onboarding case
     INSERT INTO onboarding_cases (
       user_id,
+      employee_id,
       current_state,
       submitted_at,
       approved_at,
+      reviewed_by,
       created_at,
       updated_at
     ) VALUES (
       v_user_id,
+      v_employee_id,
       'approved',
       '2024-01-12 12:00:00'::timestamptz,
       '2024-01-12 13:00:00'::timestamptz,
+      v_admin_id,
       NOW(),
       NOW()
     ) RETURNING id INTO v_case_id;
@@ -149,20 +165,29 @@ END $$;
 SELECT 
   oc.id as case_id,
   oc.user_id,
+  oc.employee_id,
   e.name as employee_name,
   e.email,
   oc.current_state,
   oc.submitted_at,
   oc.approved_at,
+  oc.reviewed_by,
+  reviewer.name as reviewed_by_name,
   op.full_name as personal_name,
   op.completed_at as personal_completed,
   ob.bank_name,
   ob.completed_at as banking_completed
 FROM onboarding_cases oc
 JOIN employees e ON e.user_id = oc.user_id
+LEFT JOIN employees reviewer ON reviewer.id = oc.reviewed_by
 LEFT JOIN onboarding_personal op ON op.case_id = oc.id
 LEFT JOIN onboarding_banking ob ON ob.case_id = oc.id
 WHERE e.email = 'employee@test.com';
 
--- Expected: current_state = 'approved', all fields populated
+-- Expected: 
+-- current_state = 'approved'
+-- employee_id = [UUID] (not NULL)
+-- reviewed_by = [UUID] (not NULL)
+-- reviewed_by_name = 'John Anderson'
+-- All fields populated
 
