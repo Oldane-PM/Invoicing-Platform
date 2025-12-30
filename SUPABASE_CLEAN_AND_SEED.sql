@@ -287,20 +287,22 @@ BEGIN
   -- =====================================================
   -- STEP 5: Create a sample project
   -- =====================================================
+  -- ⚠️ SKIPPED: projects table not required for current setup
+  -- Uncomment if you add projects table to your schema
   
-  RAISE NOTICE '📁 Creating sample project...';
-
-  INSERT INTO projects (
-    id,
-    name,
-    description,
-    created_at
-  ) VALUES (
-    gen_random_uuid(),
-    'Sample Project',
-    'A test project for demonstration purposes',
-    now()
-  );
+  -- RAISE NOTICE '📁 Creating sample project...';
+  --
+  -- INSERT INTO projects (
+  --   id,
+  --   name,
+  --   description,
+  --   created_at
+  -- ) VALUES (
+  --   gen_random_uuid(),
+  --   'Sample Project',
+  --   'A test project for demonstration purposes',
+  --   now()
+  -- );
 
   RAISE NOTICE '✅ Created sample project';
 
