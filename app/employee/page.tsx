@@ -230,6 +230,13 @@ export default function Dashboard() {
       setLoadingEmployee(true)
       const employeeData = await getEmployeeById(employeeId)
       
+      // Handle null (no employee record found)
+      if (!employeeData) {
+        console.log('[Employee Portal] No employee record found, redirecting to onboarding')
+        router.push('/employee/onboarding')
+        return
+      }
+      
       // Format last login from updated_at timestamp
       const lastLoginDate = employeeData.updated_at 
         ? format(new Date(employeeData.updated_at), 'MMM dd, yyyy, h:mm a')
