@@ -11,29 +11,40 @@ export default function OnboardingWelcome() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const employeeId = localStorage.getItem('employeeId')
-    const name = localStorage.getItem('employeeName')
+    // Get userId (auth user) - this is what we need for onboarding
+    const userId = localStorage.getItem('userId') || localStorage.getItem('employeeId')
+    const name = localStorage.getItem('employeeName') || localStorage.getItem('name')
     setEmployeeName(name || 'Employee')
 
-    if (!employeeId) {
+    // Only redirect to sign-in if NO auth user at all
+    if (!userId) {
+      console.log('[Onboarding Welcome] No userId found, redirecting to sign-in')
       router.push('/sign-in')
       return
     }
 
-    // Check onboarding status
-    getOnboardingStatus(employeeId).then((status) => {
+    console.log('[Onboarding Welcome] Checking onboarding status for userId:', userId)
+
+    // Check onboarding status using userId (not employeeId!)
+    getOnboardingStatus(userId).then((status) => {
+      console.log('[Onboarding Welcome] Status:', status)
+      
       if (status) {
         // If already submitted, redirect to status page
-        if (status.onboardingSubmittedAt) {
+        if (status.submittedAt) {
           router.push('/employee/onboarding/status')
           return
         }
         // If personal info completed, go to banking
-        if (status.personalInfoCompletedAt) {
+        if (status.personalInfoCompleted) {
           router.push('/employee/onboarding/banking')
           return
         }
       }
+      setIsLoading(false)
+    }).catch((error) => {
+      console.error('[Onboarding Welcome] Error checking status:', error)
+      // Don't redirect to login on error - stay on page
       setIsLoading(false)
     })
   }, [router])

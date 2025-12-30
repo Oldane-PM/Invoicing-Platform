@@ -29,15 +29,17 @@ export default function BankingInformationForm() {
   const currencies = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CHF']
 
   useEffect(() => {
-    const storedEmployeeId = localStorage.getItem('employeeId')
-    if (!storedEmployeeId) {
+    // Get userId (auth user) - users in onboarding don't have employeeId yet
+    const userId = localStorage.getItem('userId') || localStorage.getItem('employeeId')
+    if (!userId) {
+      console.log('[Banking] No userId found, redirecting to sign-in')
       router.push('/sign-in')
       return
     }
-    setEmployeeId(storedEmployeeId)
+    setEmployeeId(userId)
 
     // Check if personal info was completed
-    checkOnboardingProgress(storedEmployeeId)
+    checkOnboardingProgress(userId)
   }, [router])
 
   const checkOnboardingProgress = async (empId: string) => {

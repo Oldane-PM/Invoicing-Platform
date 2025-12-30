@@ -15,16 +15,18 @@ export default function OnboardingStatusPage() {
   const [employeeId, setEmployeeId] = useState('')
 
   useEffect(() => {
-    const storedEmployeeId = localStorage.getItem('employeeId')
-    if (!storedEmployeeId) {
+    // Get userId (auth user) - users in onboarding don't have employeeId yet
+    const userId = localStorage.getItem('userId') || localStorage.getItem('employeeId')
+    if (!userId) {
+      console.log('[Onboarding Status] No userId found, redirecting to sign-in')
       router.push('/sign-in')
       return
     }
-    setEmployeeId(storedEmployeeId)
-    loadStatus(storedEmployeeId)
+    setEmployeeId(userId)
+    loadStatus(userId)
 
     const interval = setInterval(() => {
-      loadStatus(storedEmployeeId)
+      loadStatus(userId)
     }, 30000)
 
     return () => clearInterval(interval)
