@@ -250,39 +250,31 @@ DROP POLICY IF EXISTS "Admins can manage all employees" ON public.employees;
 DROP POLICY IF EXISTS "Employees can view their own data" ON public.employees;
 DROP POLICY IF EXISTS "Admins have full access" ON public.employees;
 DROP POLICY IF EXISTS "Users can view own employee record" ON public.employees;
+DROP POLICY IF EXISTS "Authenticated users can view employees" ON public.employees;
+DROP POLICY IF EXISTS "Users can update own employee record" ON public.employees;
 
--- Employees can view their own record
-CREATE POLICY "Employees can view own record"
+-- ⚠️ IMPORTANT: Use simple policies to avoid circular dependency!
+-- Recursive policies (checking employees table within employees policies)
+-- cause "Database error querying schema" during Supabase Auth login
+
+-- Allow all authenticated users to view employees
+-- (Needed for app to fetch user data after login)
+CREATE POLICY "Authenticated users can view employees"
   ON public.employees
   FOR SELECT
   TO authenticated
-  USING (user_id = auth.uid());
+  USING (true);
 
--- Admins can view all employees
-CREATE POLICY "Admins can view all employees"
+-- Users can update their own record only
+CREATE POLICY "Users can update own employee record"
   ON public.employees
-  FOR SELECT
+  FOR UPDATE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM employees 
-      WHERE user_id = auth.uid() 
-        AND UPPER(role) = 'ADMIN'
-    )
-  );
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
--- Admins can manage all employees
-CREATE POLICY "Admins can manage all employees"
-  ON public.employees
-  FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM employees 
-      WHERE user_id = auth.uid() 
-        AND UPPER(role) = 'ADMIN'
-    )
-  );
+-- Note: INSERT/DELETE should be handled via service role or admin API
+-- to maintain data integrity
 
 -- =====================================================
 -- STEP 9: time_entries table (block until onboarding approved)
