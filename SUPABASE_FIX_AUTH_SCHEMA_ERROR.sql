@@ -23,6 +23,10 @@ DROP POLICY IF EXISTS "Users can view own employee record" ON public.employees;
 -- STEP 2: Create simpler, non-recursive policies
 -- =====================================================
 
+-- Drop the policies first (in case they already exist)
+DROP POLICY IF EXISTS "Authenticated users can view employees" ON public.employees;
+DROP POLICY IF EXISTS "Users can update own employee record" ON public.employees;
+
 -- Allow authenticated users to view employees (no recursion)
 -- This breaks the circular dependency during login
 CREATE POLICY "Authenticated users can view employees"
