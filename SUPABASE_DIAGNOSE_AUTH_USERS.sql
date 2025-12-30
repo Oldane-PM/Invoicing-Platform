@@ -60,7 +60,6 @@ WHERE email IN ('admin@test.com', 'manager@test.com', 'employee@test.com');
 -- =====================================================
 -- Step 3: Show all columns to identify other NULLs
 -- =====================================================
-\echo ''
-\echo '=== FULL USER RECORD (employee@test.com) ==='
+-- Full user record for employee@test.com
 SELECT * FROM auth.users WHERE email = 'employee@test.com';
 
