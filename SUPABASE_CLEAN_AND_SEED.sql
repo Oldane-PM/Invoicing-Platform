@@ -362,42 +362,44 @@ BEGIN
       now()
     ) RETURNING id INTO v_onboarding_case_id;
 
-    -- Add personal info
+    -- Add personal info (using first_name/last_name, not full_name)
     INSERT INTO onboarding_personal (
       case_id,
-      full_name,
-      address,
+      first_name,
+      last_name,
+      address_line1,
       city,
-      state_parish,
+      state_province,
       country,
-      zip_code,
+      postal_code,
       phone,
-      email,
+      date_of_birth,
       completed_at,
       created_at,
       updated_at
     ) VALUES (
       v_onboarding_case_id,
-      'New Employee',
+      'New',
+      'Employee',
       '123 Test Street',
       'Kingston',
       'Kingston',
       'Jamaica',
       '12345',
       '876-555-1234',
-      'newemployee@test.com',
+      '1990-01-01',
       now(),
       now(),
       now()
     );
 
-    -- Add banking info
+    -- Add banking info (using correct column names)
     INSERT INTO onboarding_banking (
       case_id,
       bank_name,
-      bank_address,
-      branch,
-      account_number_encrypted,
+      account_holder_name,
+      account_number,
+      routing_number,
       account_type,
       currency,
       completed_at,
@@ -406,11 +408,11 @@ BEGIN
     ) VALUES (
       v_onboarding_case_id,
       'National Commercial Bank',
-      'Kingston Branch',
-      'Half Way Tree',
+      'New Employee',
       '1234567890', -- In production, this should be encrypted
+      '876001', -- Routing number
       'checking',
-      'JMD',
+      'USD',
       now(),
       now(),
       now()
