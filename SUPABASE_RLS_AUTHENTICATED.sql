@@ -242,7 +242,14 @@ CREATE POLICY "Admins can view all events"
 -- STEP 8: employees table policies
 -- =====================================================
 
+-- Drop ALL existing employees policies (including from previous migrations)
 DROP POLICY IF EXISTS "Allow anon full access to employees" ON public.employees;
+DROP POLICY IF EXISTS "Employees can view own record" ON public.employees;
+DROP POLICY IF EXISTS "Admins can view all employees" ON public.employees;
+DROP POLICY IF EXISTS "Admins can manage all employees" ON public.employees;
+DROP POLICY IF EXISTS "Employees can view their own data" ON public.employees;
+DROP POLICY IF EXISTS "Admins have full access" ON public.employees;
+DROP POLICY IF EXISTS "Users can view own employee record" ON public.employees;
 
 -- Employees can view their own record
 CREATE POLICY "Employees can view own record"
