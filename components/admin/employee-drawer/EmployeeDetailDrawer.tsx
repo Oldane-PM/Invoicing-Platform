@@ -45,9 +45,6 @@ export function EmployeeDetailDrawer({
   const [statusLog, setStatusLog] = useState<StatusLogEntry[]>([])
   const [managers, setManagers] = useState<{ id: string; name: string }[]>([])
   
-  // ✅ Track full employee data from API (for Access Control tab)
-  const [employeeData, setEmployeeData] = useState<any>(null)
-  
   // Toast state
   const [toast, setToast] = useState<ToastState>({ show: false, title: '', variant: 'success' })
 
@@ -127,7 +124,6 @@ export function EmployeeDetailDrawer({
         })
         
         // Clear data on error
-        setEmployeeData(null)
         setSubmissions([])
         setInvoices([])
         setContractInfo(null)
@@ -315,19 +311,18 @@ export function EmployeeDetailDrawer({
                   onToast={showToast}
                 />
               )}
-              {activeTab === 'access-control' && employee && employeeData && (
+              {activeTab === 'access-control' && employee && (
                 <EmployeeAccessControlTab
                   employeeId={employee.id}
-                  currentRole={(employeeData.role?.toUpperCase() || 'EMPLOYEE') as UserRole}
-                  currentManagerId={employeeData.reporting_manager_id || null}
-                  currentManagerName={(employeeData as any).reporting_manager?.name || null}
+                  currentRole={employee.role || 'EMPLOYEE'}
+                  currentManagerId={employee.reportingManagerId || null}
+                  currentManagerName={employee.reportingManagerName || null}
                   managers={managers}
                   onToast={showToast}
                   onRoleUpdate={(role, managerId, managerName) => {
-                    // ✅ Refresh drawer data to sync both tabs
-                    loadEmployeeData(employee.id)
-                    // Notify parent component (Employee Directory) about manager change
-                    onManagerUpdate?.(employee.id, managerId, managerName)
+                    // Update local employee state
+                    // This will be reflected on next data fetch
+                    console.log('Role updated:', { role, managerId, managerName })
                   }}
                 />
               )}
