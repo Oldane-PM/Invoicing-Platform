@@ -8,10 +8,9 @@ SELECT
   is_nullable,
   column_default
 FROM information_schema.columns
-WHERE table_schema = 'public' 
-  AND table_name = 'employees'
+WHERE table_name = 'employees'
+  AND table_schema = 'public'
 ORDER BY ordinal_position;
 
--- Also show a sample record to see what fields have data
+-- Also show a sample record
 SELECT * FROM employees WHERE email = 'admin@test.com' LIMIT 1;
-
