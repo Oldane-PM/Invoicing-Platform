@@ -56,19 +56,23 @@ BEGIN
   RAISE NOTICE '📊 ALL EMPLOYEES:';
   RAISE NOTICE '==========================================';
   
-  FOR rec IN 
-    SELECT 
-      e.id,
-      e.user_id,
-      e.name,
-      e.email,
-      e.role,
-      e.status
-    FROM employees e
-    ORDER BY e.created_at DESC
-  LOOP
-    RAISE NOTICE '- % (%) - % - %', rec.name, rec.email, rec.role, rec.status;
-  END LOOP;
+  DECLARE
+    rec RECORD;
+  BEGIN
+    FOR rec IN 
+      SELECT 
+        e.id,
+        e.user_id,
+        e.name,
+        e.email,
+        e.role,
+        e.status
+      FROM employees e
+      ORDER BY e.created_at DESC
+    LOOP
+      RAISE NOTICE '- % (%) - % - %', rec.name, rec.email, rec.role, rec.status;
+    END LOOP;
+  END;
 
   RAISE NOTICE '==========================================';
   RAISE NOTICE '✅ FIX COMPLETE!';
