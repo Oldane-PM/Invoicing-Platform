@@ -1,16 +1,13 @@
 /**
- * Data Access Layer: Employees (FIXED for user_id queries)
+ * Data Access Layer: Employees
  * 
  * All employee-related database operations go through this module.
- * 
- * IMPORTANT: This module correctly handles auth user_id vs employee PK id distinction.
  */
 
 import { supabase } from '@/lib/supabase/client'
 
 export interface Employee {
   id: string
-  user_id?: string | null
   name: string
   email: string
   role: string
@@ -38,67 +35,6 @@ export interface EmployeeFilters {
   contractType?: string
   managerId?: string
   search?: string
-}
-
-// ============================================
-// GET EMPLOYEE BY USER_ID (for auth lookups)
-// ============================================
-/**
- * Fetch employee record by Supabase auth user_id
- * This is the PRIMARY method for auth-based employee lookups
- * 
- * @param userId - Supabase auth.users.id (UUID)
- * @returns Employee or null if not found (handles onboarding state)
- */
-export async function getEmployeeByUserId(userId: string): Promise<Employee | null> {
-  console.log('[DAL] Fetching employee by user_id:', userId)
-  
-  const { data, error } = await supabase
-    .from('employees')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle() // Returns null if not found (not an error)
-
-  if (error) {
-    console.error('[DAL] Error fetching employee by user_id:', error)
-    throw new Error(`Failed to fetch employee: ${error.message}`)
-  }
-
-  if (!data) {
-    console.log('[DAL] No employee record found for user_id:', userId)
-    return null
-  }
-
-  console.log('[DAL] Employee found:', { id: data.id, name: data.name, status: data.status })
-  return data
-}
-
-// ============================================
-// GET EMPLOYEE BY ID (for internal queries)
-// ============================================
-/**
- * Fetch employee record by employee PK id
- * Only use this when you have the actual employee row ID
- * 
- * @param employeeId - employees.id (UUID, not auth user id)
- * @returns Employee or null if not found
- */
-export async function getEmployeeById(employeeId: string): Promise<Employee | null> {
-  const { data, error } = await supabase
-    .from('employees')
-    .select('*')
-    .eq('id', employeeId)
-    .maybeSingle() // Changed from .single() to handle not found gracefully
-
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null
-    }
-    console.error('[DAL] Error fetching employee by id:', error)
-    throw new Error(`Failed to fetch employee: ${error.message}`)
-  }
-
-  return data
 }
 
 // ============================================
@@ -130,6 +66,27 @@ export async function listEmployees(filters?: EmployeeFilters): Promise<Employee
   }
 
   return data || []
+}
+
+// ============================================
+// GET EMPLOYEE BY ID
+// ============================================
+export async function getEmployeeById(employeeId: string): Promise<Employee | null> {
+  const { data, error } = await supabase
+    .from('employees')
+    .select('*')
+    .eq('id', employeeId)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return null
+    }
+    console.error('[DAL] Error fetching employee:', error)
+    throw new Error(`Failed to fetch employee: ${error.message}`)
+  }
+
+  return data
 }
 
 // ============================================
@@ -213,6 +170,9 @@ export async function countEmployees(filters?: {
     .from('employees')
     .select('id', { count: 'exact', head: true })
 
+  // Note: Complex filtering would require additional logic
+  // This is a simplified version
+
   const { count, error } = await query
 
   if (error) {
@@ -221,29 +181,5 @@ export async function countEmployees(filters?: {
   }
 
   return count || 0
-}
-
-// ============================================
-// CHECK EMPLOYEE STATUS BY USER_ID
-// ============================================
-/**
- * Quick status check for timesheet gates, etc.
- * 
- * @param userId - Supabase auth user id
- * @returns Status string or null if no employee record
- */
-export async function getEmployeeStatus(userId: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('employees')
-    .select('status')
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  if (error) {
-    console.error('[DAL] Error fetching employee status:', error)
-    return null
-  }
-
-  return data?.status || null
 }
 

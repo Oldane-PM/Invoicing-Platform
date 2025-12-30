@@ -21,7 +21,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Invoice, SubmissionStatus } from '@/types/domain'
 import { getEmployeeSubmissions } from '@/lib/supabase/queries/submissions'
 import { transformSubmissionToFrontend, transformSubmissionToDB, SubmissionFrontend } from '@/lib/utils/dataTransform'
-import { getEmployeeById } from '@/lib/supabase/queries/employees'
+import { getEmployeeByUserId } from '@/lib/data/employees'
 import { employeeCanEdit, employeeCanDelete, getStatusDisplay, getEmployeeStatusLabel } from '@/lib/submission-status'
 import Swal from 'sweetalert2'
 import { AppHeader } from '@/components/layout/AppHeader'
@@ -67,6 +67,7 @@ export default function Dashboard() {
   const [overtimeFocused, setOvertimeFocused] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const [userId, setUserId] = useState<string>('')
   const [employeeId, setEmployeeId] = useState<string>('')
   const [loadingSubmissions, setLoadingSubmissions] = useState(true)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
