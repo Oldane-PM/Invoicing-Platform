@@ -253,12 +253,9 @@ export default function Dashboard() {
         onboarding_status: onboardingStatus,
       })
 
-      // Redirect to onboarding if not complete
-      // This handles new sign-ups and incomplete onboarding
-      if (!onboardingStatus || onboardingStatus === 'INCOMPLETE') {
-        router.push('/employee/onboarding')
-        return
-      }
+      // ⚠️ REFACTORED: No longer redirects based on onboarding status
+      // Onboarding is advisory only - employees can submit hours regardless
+      // UI shows an advisory banner if onboarding incomplete, but doesn't block
     } catch (error) {
       console.error('Error loading employee data:', error)
       // Fallback to default values if Supabase fails
@@ -892,28 +889,28 @@ export default function Dashboard() {
       />
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Onboarding Lock Panel */}
-        {!checkingOnboarding && !canSubmitHours && (
-          <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-6">
+        {/* Advisory Onboarding Banner (No Longer Blocking) */}
+        {!checkingOnboarding && employee.onboarding_status !== 'COMPLETE' && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-6">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0">
-                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                  <Lock className="w-6 h-6 text-amber-600" />
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-blue-600" />
                 </div>
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-amber-900 mb-2">
-                  Timesheet Submissions Locked
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">
+                  Complete Your Profile (Optional)
                 </h3>
-                <p className="text-amber-800 mb-4">
-                  You need to complete your onboarding before you can submit hours. This ensures
-                  all your information is properly verified before processing payroll.
+                <p className="text-blue-800 mb-4">
+                  Your onboarding is not yet complete. While you can submit hours now, completing 
+                  your profile will ensure accurate payroll processing and faster approvals.
                 </p>
                 <button
                   onClick={() => router.push('/employee/onboarding/status')}
-                  className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
-                  View Onboarding Status →
+                  Complete Profile →
                 </button>
               </div>
             </div>

@@ -719,23 +719,19 @@ export async function getOnboardingEvents(caseId: string): Promise<OnboardingEve
 }
 
 /**
- * Check if employee can submit timesheets (approved + active)
+ * Check if employee can submit timesheets
+ * 
+ * ⚠️ REFACTORED: No longer blocks based on onboarding status.
+ * Always returns true for authenticated users (ownership enforced via RLS).
+ * 
+ * Onboarding status is advisory only and used for UI messaging.
  */
 export async function canSubmitTimesheets(userId: string): Promise<boolean> {
-  // Check if user has an active employee record
-  const { data: employee, error } = await supabase
-    .from('employees')
-    .select('status')
-    .eq('user_id', userId)
-    .maybeSingle() // Changed from .single() to handle null gracefully
-  
-  if (error) {
-    console.error('[DAL] Error checking timesheet permission:', error)
-    return false
-  }
-  
-  // Only allow if employee exists and status is active
-  return employee?.status === 'active'
+  // Always allow submission for authenticated users
+  // RLS policies enforce ownership (user can only submit their own hours)
+  // Onboarding status is advisory only, not restrictive
+  console.log('[DAL] canSubmitTimesheets - allowing submission (onboarding not required)')
+  return true
 }
 
 /**
