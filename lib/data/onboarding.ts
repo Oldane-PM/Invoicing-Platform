@@ -256,6 +256,8 @@ function transformToOnboardingData(caseData: any): OnboardingData {
  * Get onboarding status for current user
  */
 export async function getOnboardingStatus(userId: string): Promise<OnboardingData | null> {
+  console.log('[DAL] Fetching onboarding status for user_id:', userId)
+  
   const { data: caseData, error } = await supabase
     .from('onboarding_cases')
     .select(`
@@ -266,17 +268,19 @@ export async function getOnboardingStatus(userId: string): Promise<OnboardingDat
       reviewer:reviewed_by(name)
     `)
     .eq('user_id', userId)
-    .single()
+    .maybeSingle() // Changed from .single() - returns null if not found (no 406)
   
   if (error) {
-    if (error.code === 'PGRST116') {
-      // No case found - user hasn't started onboarding
-      return null
-    }
-    console.error('Error fetching onboarding status:', error)
+    console.error('[DAL] Error fetching onboarding status:', error)
     return null
   }
   
+  if (!caseData) {
+    console.log('[DAL] No onboarding case found for user - needs to start onboarding')
+    return null
+  }
+  
+  console.log('[DAL] Onboarding case found:', { case_id: caseData.id, state: caseData.current_state })
   return transformToOnboardingData(caseData)
 }
 
@@ -294,10 +298,15 @@ export async function getOnboardingStatusByCase(caseId: string): Promise<Onboard
       reviewer:reviewed_by(name)
     `)
     .eq('id', caseId)
-    .single()
+    .maybeSingle() // Changed from .single() to handle not found gracefully
   
   if (error) {
-    console.error('Error fetching onboarding case:', error)
+    console.error('[DAL] Error fetching onboarding case:', error)
+    return null
+  }
+  
+  if (!caseData) {
+    console.log('[DAL] No onboarding case found for case_id:', caseId)
     return null
   }
   
@@ -672,12 +681,18 @@ export async function getOnboardingEvents(caseId: string): Promise<OnboardingEve
  */
 export async function canSubmitTimesheets(userId: string): Promise<boolean> {
   // Check if user has an active employee record
-  const { data: employee } = await supabase
+  const { data: employee, error } = await supabase
     .from('employees')
     .select('status')
     .eq('user_id', userId)
-    .single()
+    .maybeSingle() // Changed from .single() to handle null gracefully
   
+  if (error) {
+    console.error('[DAL] Error checking timesheet permission:', error)
+    return false
+  }
+  
+  // Only allow if employee exists and status is active
   return employee?.status === 'active'
 }
 
@@ -686,13 +701,20 @@ export async function canSubmitTimesheets(userId: string): Promise<boolean> {
  * (for backward compatibility with existing UI code)
  */
 export async function getOnboardingStatusByEmployeeId(employeeId: string): Promise<OnboardingData | null> {
-  const { data: employee } = await supabase
+  const { data: employee, error } = await supabase
     .from('employees')
     .select('user_id')
     .eq('id', employeeId)
-    .single()
+    .maybeSingle() // Changed from .single() to handle not found gracefully
   
-  if (!employee) return null
+  if (error) {
+    console.error('[DAL] Error fetching employee for onboarding lookup:', error)
+    return null
+  }
+  
+  if (!employee || !employee.user_id) {
+    return null
+  }
   
   return getOnboardingStatus(employee.user_id)
 }
