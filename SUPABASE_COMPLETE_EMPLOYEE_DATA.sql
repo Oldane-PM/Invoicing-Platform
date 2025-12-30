@@ -13,22 +13,14 @@ SET
   name = 'Michael Brown',
   email = 'employee@test.com',
   phone = '(876) 555-3003',
-  address = '789 Worker Street',
-  city = 'Kingston',
-  state_province = 'Kingston Parish',
-  postal_code = '12345',
-  country = 'Jamaica',
+  address = '789 Worker Street, Kingston, Jamaica',
   
   -- Banking Information
   bank_name = 'Jamaica National Bank',
   account_type = 'Checking',
-  routing_number = 'JN987654',
-  swift_code = 'JNCBJMKX',
-  currency = 'JMD',
   
   -- Employment Information
   position = 'Software Developer',
-  department = 'Engineering',
   hourly_rate = 45.00,
   role = 'employee',
   status = 'active',
@@ -58,17 +50,12 @@ SELECT
   email,
   role,
   status,
-  
-  -- Personal Info
-  phone IS NOT NULL as has_phone,
-  address IS NOT NULL as has_address,
-  
-  -- Banking Info
-  bank_name IS NOT NULL as has_banking,
-  
-  -- Employment Info
-  position IS NOT NULL as has_position,
-  hourly_rate IS NOT NULL as has_rate,
+  phone,
+  address,
+  bank_name,
+  account_type,
+  position,
+  hourly_rate,
   
   -- Onboarding Status
   onboarding_status,
@@ -91,10 +78,10 @@ WHERE email = 'employee@test.com';
 -- =====================================================
 -- EXPECTED RESULT:
 -- =====================================================
+-- name = 'Michael Brown'
 -- onboarding_status = 'COMPLETE'
 -- admin_approval_status = 'APPROVED'
--- All "has_*" columns = true
--- All completion timestamps = true
+-- All fields populated
 -- reports_to = 'Sarah Williams' (Manager)
 -- =====================================================
 
@@ -106,9 +93,9 @@ BEGIN
   RAISE NOTICE '╚═══════════════════════════════════════════════════════╝';
   RAISE NOTICE '';
   RAISE NOTICE 'Employee: Michael Brown (employee@test.com)';
-  RAISE NOTICE '  ✅ Personal Info: Complete';
-  RAISE NOTICE '  ✅ Banking Info: Complete';
-  RAISE NOTICE '  ✅ Employment Info: Complete';
+  RAISE NOTICE '  ✅ Personal Info: Name, Phone, Address';
+  RAISE NOTICE '  ✅ Banking Info: Bank Name, Account Type';
+  RAISE NOTICE '  ✅ Employment Info: Position, Hourly Rate';
   RAISE NOTICE '  ✅ Onboarding Status: COMPLETE';
   RAISE NOTICE '  ✅ Admin Approval: APPROVED';
   RAISE NOTICE '  ✅ Reports To: Sarah Williams (Manager)';
