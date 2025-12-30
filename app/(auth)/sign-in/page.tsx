@@ -87,6 +87,8 @@ export default function SignIn() {
       const { supabase } = await import('@/lib/supabase/client')
       
       console.log('[Sign-In] Attempting Supabase Auth login for:', loginEmail)
+      console.log('[Sign-In] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 30) + '...')
+      console.log('[Sign-In] Anon key present:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
       
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: loginEmail,
@@ -94,8 +96,25 @@ export default function SignIn() {
       })
       
       if (authError) {
-        console.error('[Sign-In] Supabase Auth error:', authError)
-        throw new Error('Invalid email or password')
+        console.error('[Sign-In] Supabase Auth error:', {
+          message: authError.message,
+          status: authError.status,
+          code: (authError as any).code,
+          name: authError.name,
+        })
+        
+        // If it's a 500+ error, show the real error (don't mask as invalid credentials)
+        if (authError.status && authError.status >= 500) {
+          throw new Error(`🔥 Auth Service Error (${authError.status}): ${authError.message}`)
+        }
+        
+        // For 400/401 errors, show appropriate message
+        if (authError.message.toLowerCase().includes('invalid')) {
+          throw new Error('Invalid email or password')
+        }
+        
+        // Otherwise show the real error
+        throw new Error(authError.message)
       }
       
       if (!authData.user) {

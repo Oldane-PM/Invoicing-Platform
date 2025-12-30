@@ -9,7 +9,10 @@
     "lint": "next lint",
     "db:migrate": "node scripts/run-migrations.js",
     "db:combine": "node scripts/combine-migrations.js",
-    "db:seed": "node scripts/seed-test-employees.js"
+    "db:seed": "node scripts/seed-test-employees.js",
+    "test:auth-smoke": "ts-node scripts/supabaseAuthSmokeTest.ts",
+    "diag:auth": "curl http://localhost:3000/api/diag/supabase-auth",
+    "diag:db": "curl http://localhost:3000/api/diag/supabase-db"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",
