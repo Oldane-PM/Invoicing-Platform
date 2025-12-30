@@ -14,7 +14,7 @@ UPDATE employees
 SET
   name = 'John Anderson',
   email = 'admin@test.com',
-  role = 'ADMIN',
+  role = 'admin',  -- lowercase
   status = 'active',
   updated_at = now()
 WHERE email = 'admin@test.com';
@@ -28,7 +28,7 @@ UPDATE employees
 SET
   name = 'Sarah Williams',
   email = 'manager@test.com',
-  role = 'MANAGER',
+  role = 'manager',  -- lowercase
   status = 'active',
   reporting_manager_id = (SELECT id FROM employees WHERE email = 'admin@test.com'),
   updated_at = now()
@@ -43,7 +43,7 @@ UPDATE employees
 SET
   name = 'Michael Brown',
   email = 'employee@test.com',
-  role = 'EMPLOYEE',
+  role = 'employee',  -- lowercase
   status = 'active',
   reporting_manager_id = (SELECT id FROM employees WHERE email = 'manager@test.com'),
   updated_at = now()
@@ -345,9 +345,9 @@ LEFT JOIN onboarding_banking ob ON ob.case_id = oc.id
 WHERE e.email IN ('admin@test.com', 'manager@test.com', 'employee@test.com')
 ORDER BY 
   CASE e.role 
-    WHEN 'ADMIN' THEN 1 
-    WHEN 'MANAGER' THEN 2 
-    WHEN 'EMPLOYEE' THEN 3 
+    WHEN 'admin' THEN 1 
+    WHEN 'manager' THEN 2 
+    WHEN 'employee' THEN 3 
   END;
 
 -- =====================================================
@@ -362,20 +362,20 @@ BEGIN
   RAISE NOTICE '╚═══════════════════════════════════════════════════════╝';
   RAISE NOTICE '';
   RAISE NOTICE '✅ Admin: John Anderson';
-  RAISE NOTICE '   - Role: ADMIN';
+  RAISE NOTICE '   - Role: admin';
   RAISE NOTICE '   - Email: admin@test.com';
   RAISE NOTICE '   - Location: Kingston, Jamaica';
   RAISE NOTICE '   - Bank: NCB Jamaica';
   RAISE NOTICE '';
   RAISE NOTICE '✅ Manager: Sarah Williams';
-  RAISE NOTICE '   - Role: MANAGER';
+  RAISE NOTICE '   - Role: manager';
   RAISE NOTICE '   - Email: manager@test.com';
   RAISE NOTICE '   - Location: Montego Bay, Jamaica';
   RAISE NOTICE '   - Bank: Scotiabank';
   RAISE NOTICE '   - Reports to: John Anderson';
   RAISE NOTICE '';
   RAISE NOTICE '✅ Employee: Michael Brown';
-  RAISE NOTICE '   - Role: EMPLOYEE';
+  RAISE NOTICE '   - Role: employee';
   RAISE NOTICE '   - Email: employee@test.com';
   RAISE NOTICE '   - Location: Ocho Rios, Jamaica';
   RAISE NOTICE '   - Bank: JN Bank';
