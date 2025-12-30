@@ -83,41 +83,73 @@ export default function SignIn() {
     setError(null)
     
     try {
-      // For demo: Use mock login API
-      const response = await fetch(`/api/auth/mock-login?role=employee&email=${encodeURIComponent(loginEmail)}`)
+      // Use Supabase Auth instead of mock login
+      const { supabase } = await import('@/lib/supabase/client')
       
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Invalid email or password')
+      console.log('[Sign-In] Attempting Supabase Auth login for:', loginEmail)
+      
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
+      })
+      
+      if (authError) {
+        console.error('[Sign-In] Supabase Auth error:', authError)
+        throw new Error('Invalid email or password')
       }
       
-      const data = await response.json()
-      
-      if (!data.employeeId) {
-        throw new Error('Invalid credentials')
+      if (!authData.user) {
+        throw new Error('Login failed - no user returned')
       }
       
-      // Store authentication data
-      const role = data.role?.toUpperCase() || 'EMPLOYEE'
-      localStorage.setItem('userRole', role)
-      localStorage.setItem('employeeId', data.employeeId)
-      localStorage.setItem('employeeName', data.name || '')
-      localStorage.setItem('employeeEmail', data.email || loginEmail)
+      console.log('[Sign-In] ✅ Supabase Auth successful, user ID:', authData.user.id)
       
-      if (role === 'MANAGER') {
-        localStorage.setItem('managerId', data.employeeId)
+      // Fetch employee record to get role and other details
+      const { data: employeeData, error: employeeError } = await supabase
+        .from('employees')
+        .select('id, name, role, email')
+        .eq('user_id', authData.user.id)
+        .maybeSingle()
+      
+      if (employeeError) {
+        console.error('[Sign-In] Error fetching employee:', employeeError)
       }
       
-      // Redirect based on role
-      const redirectPaths: Record<string, string> = {
-        EMPLOYEE: '/employee',
-        MANAGER: '/manager/dashboard',
-        ADMIN: '/admin/dashboard'
-      }
+      // Store in localStorage for UI convenience
+      // (Supabase session is stored automatically by Supabase client)
+      localStorage.setItem('userId', authData.user.id)
+      localStorage.setItem('employeeEmail', authData.user.email || loginEmail)
       
-      router.push(redirectPaths[role] || '/sign-in')
+      if (employeeData) {
+        // User has employee record - proceed to their dashboard
+        const role = employeeData.role?.toUpperCase() || 'EMPLOYEE'
+        
+        localStorage.setItem('employeeId', employeeData.id)
+        localStorage.setItem('employeeName', employeeData.name || '')
+        localStorage.setItem('userRole', role)
+        
+        if (role === 'MANAGER') {
+          localStorage.setItem('managerId', employeeData.id)
+        }
+        
+        console.log('[Sign-In] Employee record found, role:', role)
+        
+        // Redirect based on role
+        const redirectPaths: Record<string, string> = {
+          EMPLOYEE: '/employee',
+          MANAGER: '/manager/dashboard',
+          ADMIN: '/admin/dashboard'
+        }
+        
+        router.push(redirectPaths[role] || '/employee')
+      } else {
+        // No employee record yet - send to onboarding
+        console.log('[Sign-In] No employee record, redirecting to onboarding')
+        localStorage.setItem('employeeName', authData.user.email?.split('@')[0] || 'User')
+        router.push('/employee/onboarding')
+      }
     } catch (err) {
-      console.error('Login error:', err)
+      console.error('[Sign-In] Login error:', err)
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
       setLoading(false)
     }
