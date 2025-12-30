@@ -9,17 +9,10 @@ export async function GET(
   try {
     const employeeId = params.id
 
-    // Get employee details with reporting manager join
+    // Get employee details
     const { data: employee, error: employeeError } = await supabase
       .from('employees')
-      .select(`
-        *,
-        reporting_manager:employees!employees_reporting_manager_id_fkey (
-          id,
-          name,
-          email
-        )
-      `)
+      .select('*')
       .eq('id', employeeId)
       .single()
 
@@ -122,8 +115,6 @@ export async function GET(
       .single()
 
     // Build contract info with rate type support
-    // ✅ FIXED: Use employees.reporting_manager_id as single source of truth (not team_members.manager_id)
-    const reportingManager = (employee as any).reporting_manager
     const contractInfo = {
       startDate: teamMember?.contract_start
         ? new Date(teamMember.contract_start).toLocaleDateString('en-US', {
@@ -151,8 +142,8 @@ export async function GET(
       fixedIncome: employee.monthly_rate || undefined,
       positionTitle: teamMember?.project_name || 'Team Member',
       department: 'General',
-      reportingManager: reportingManager?.name || 'Unassigned',
-      reportingManagerId: employee.reporting_manager_id || undefined,
+      reportingManager: (teamMember?.manager as any)?.name || 'Unassigned',
+      reportingManagerId: teamMember?.manager_id || undefined, // Include manager ID for form binding
     }
 
     // Get notifications as status log
@@ -234,7 +225,7 @@ export async function PATCH(
     const supabaseAdmin = getSupabaseAdmin()
 
     // Allowed fields on the employees table
-    const employeeFields = ['hourly_rate', 'overtime_rate', 'monthly_rate', 'rate_type', 'status', 'active_project', 'reporting_manager_id']
+    const employeeFields = ['hourly_rate', 'overtime_rate', 'monthly_rate', 'rate_type', 'status', 'active_project', 'manager_id']
 
     // Filter to only allowed employee fields
     const employeeUpdateData: Record<string, any> = {}
@@ -252,8 +243,8 @@ export async function PATCH(
     if (body.reporting_manager_id !== undefined) {
       newManagerId = body.reporting_manager_id || null
 
-      // ✅ FIXED: Update employees.reporting_manager_id as single source of truth
-      employeeUpdateData.reporting_manager_id = newManagerId
+      // Also stage update for employees.manager_id so it's the single source of truth
+      employeeUpdateData.manager_id = newManagerId
 
       // Get the new manager's name for notification
       if (newManagerId) {
