@@ -74,10 +74,21 @@ export function EmployeeDetailDrawer({
   const loadEmployeeData = async (employeeId: string) => {
     try {
       setLoading(true)
+      
+      // 🔍 Log what we're fetching
+      console.log('[Drawer] Loading employee data for:', employeeId)
+      
       const response = await fetch(`/api/admin/employees/${employeeId}`)
       
       if (response.ok) {
         const data = await response.json()
+        
+        console.log('[Drawer] Successfully loaded employee data')
+        
+        // ✅ Store full employee data (for Access Control tab)
+        if (data.employee) {
+          setEmployeeData(data.employee)
+        }
         
         // Set submissions
         if (data.submissions) {
@@ -99,15 +110,34 @@ export function EmployeeDetailDrawer({
           setStatusLog(data.statusLog)
         }
       } else {
-        console.error('Failed to load employee data')
+        // 🚨 DETAILED ERROR LOGGING
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('❌ [Drawer] Failed to load employee data:', {
+          status: response.status,
+          statusText: response.statusText,
+          employeeId,
+          error: errorData.error,
+          details: errorData.details,
+          hint: errorData.hint,
+          code: errorData.code,
+          url: `/api/admin/employees/${employeeId}`
+        })
+        
         // Clear data on error
         setSubmissions([])
         setInvoices([])
         setContractInfo(null)
         setStatusLog([])
       }
-    } catch (error) {
-      console.error('Error loading employee data:', error)
+    } catch (error: any) {
+      // 🚨 DETAILED ERROR LOGGING
+      console.error('❌ [Drawer] Exception loading employee data:', {
+        employeeId,
+        error: error?.message || String(error),
+        stack: error?.stack,
+        name: error?.name
+      })
+      setEmployeeData(null)
       setSubmissions([])
       setInvoices([])
       setContractInfo(null)
@@ -279,10 +309,6 @@ export function EmployeeDetailDrawer({
                   onUpdateContractInfo={handleUpdateContractInfo}
                   managers={managers}
                   onToast={showToast}
-                  onManagerUpdate={(managerId, managerName) => {
-                    // Notify parent component (Employee Directory) about manager change
-                    onManagerUpdate?.(employee.id, managerId, managerName)
-                  }}
                 />
               )}
               {activeTab === 'access-control' && employee && (

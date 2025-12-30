@@ -8,21 +8,74 @@ export async function GET(
 ) {
   try {
     const employeeId = params.id
+    
+    // 🔍 Log incoming request
+    console.log('[API] GET /api/admin/employees/:id', { employeeId })
+    
+    // ✅ Guard: Validate employeeId
+    if (!employeeId || employeeId === 'undefined' || employeeId === 'null') {
+      console.error('❌ [API] Invalid employeeId:', { employeeId })
+      return NextResponse.json(
+        { 
+          error: 'Invalid employee ID',
+          hint: 'Employee ID is required and must be a valid UUID'
+        },
+        { status: 400 }
+      )
+    }
 
-    // Get employee details
+    // Get employee details with reporting manager join
+    // ✅ Using .maybeSingle() to handle missing records gracefully
+    // Note: For self-referencing FK, we need to specify the full constraint name
+    // If this fails, run VERIFY_FK_CONSTRAINT.sql to get the exact name
     const { data: employee, error: employeeError } = await supabase
       .from('employees')
-      .select('*')
+      .select(`
+        *,
+        reporting_manager:employees!reporting_manager_id (
+          id,
+          name,
+          email
+        )
+      `)
       .eq('id', employeeId)
-      .single()
+      .maybeSingle()
 
     if (employeeError) {
-      console.error('Error fetching employee:', employeeError)
+      // 🚨 DETAILED ERROR LOGGING
+      console.error('❌ [API] Supabase error fetching employee:', {
+        employeeId,
+        code: employeeError.code,
+        message: employeeError.message,
+        details: employeeError.details,
+        hint: employeeError.hint
+      })
       return NextResponse.json(
-        { error: 'Employee not found' },
+        { 
+          error: 'Database error fetching employee',
+          code: employeeError.code,
+          message: employeeError.message,
+          details: employeeError.details,
+          hint: employeeError.hint
+        },
+        { status: 500 }
+      )
+    }
+    
+    // ✅ Handle missing employee gracefully
+    if (!employee) {
+      console.warn('⚠️ [API] Employee not found:', { employeeId })
+      return NextResponse.json(
+        { 
+          error: 'Employee not found',
+          employeeId,
+          hint: 'The employee ID does not exist in the database'
+        },
         { status: 404 }
       )
     }
+    
+    console.log('[API] Employee found:', { id: employee.id, name: employee.name })
 
     // Get employee submissions
     const { data: submissions, error: submissionsError } = await supabase
