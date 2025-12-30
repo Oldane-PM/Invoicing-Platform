@@ -25,17 +25,53 @@ END $$;
 SET session_replication_role = replica;
 
 -- Truncate all tables in the correct order (FK dependencies)
-TRUNCATE TABLE IF EXISTS onboarding_events CASCADE;
-TRUNCATE TABLE IF EXISTS onboarding_contract CASCADE;
-TRUNCATE TABLE IF EXISTS onboarding_banking CASCADE;
-TRUNCATE TABLE IF EXISTS onboarding_personal CASCADE;
-TRUNCATE TABLE IF EXISTS onboarding_cases CASCADE;
-TRUNCATE TABLE IF EXISTS invoices CASCADE;
-TRUNCATE TABLE IF EXISTS notifications CASCADE;
-TRUNCATE TABLE IF EXISTS team_members CASCADE;
-TRUNCATE TABLE IF EXISTS submissions CASCADE;
-TRUNCATE TABLE IF EXISTS employees CASCADE;
-TRUNCATE TABLE IF EXISTS projects CASCADE;
+DO $$
+BEGIN
+  -- Truncate tables only if they exist
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'onboarding_events') THEN
+    TRUNCATE TABLE onboarding_events CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'onboarding_contract') THEN
+    TRUNCATE TABLE onboarding_contract CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'onboarding_banking') THEN
+    TRUNCATE TABLE onboarding_banking CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'onboarding_personal') THEN
+    TRUNCATE TABLE onboarding_personal CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'onboarding_cases') THEN
+    TRUNCATE TABLE onboarding_cases CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'invoices') THEN
+    TRUNCATE TABLE invoices CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications') THEN
+    TRUNCATE TABLE notifications CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'team_members') THEN
+    TRUNCATE TABLE team_members CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'submissions') THEN
+    TRUNCATE TABLE submissions CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'employees') THEN
+    TRUNCATE TABLE employees CASCADE;
+  END IF;
+  
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'projects') THEN
+    TRUNCATE TABLE projects CASCADE;
+  END IF;
+END $$;
 
 -- Re-enable triggers
 SET session_replication_role = DEFAULT;
